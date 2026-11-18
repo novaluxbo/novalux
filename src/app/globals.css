@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+* {
+  font-family: inherit;
+  /* Hereda la fuente del body */
+}
+
+
+/* app/globals.css */
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif;
+}
+
+@keyframes move {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-move {
+  animation: move 6s linear infinite;
+}
+
+/* Para transiciones suaves del texto */
+.sidebar-text-transition {
+  transition: opacity 0.2s ease, width 0.3s ease;
+}
+
+/* Evitar que el contenido se desborde durante la transición */
+.sidebar-content {
+  min-width: 0;
+}
+
+/* Tooltips para cuando está colapsado */
+[title] {
+  position: relative;
+}
+
+[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1f2937;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-left: 8px;
+}

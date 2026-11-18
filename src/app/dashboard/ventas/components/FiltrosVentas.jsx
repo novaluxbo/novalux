@@ -1,0 +1,638 @@
+// src/app/dashboard/ventas/components/FiltrosVentas.jsx
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+
+// ✅ IMPORTAR UTILIDADES DE FECHAS
+import {
+    formatUTCToBolivia,
+    getCurrentUTCTime,
+    getBoliviaDayRangeUTC,
+    utcToBoliviaDate
+} from '@/utils/dateUtils';
+
+// ❌ ELIMINAR estas constantes y funciones manuales
+// const TIMEZONE_BOLIVIA = -4;
+// const boliviaToUTC = ...
+// const utcToBolivia = ...
+// const formatearFechaParaMostrar = ...
+
+// ✅ NUEVA función para formatear fecha para mostrar en inputs
+const formatearFechaParaInput = (fecha) => {
+    if (!fecha) return '';
+    try {
+        const date = new Date(fecha);
+        if (isNaN(date.getTime())) return '';
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    } catch {
+        return '';
+    }
+};
+
+// ✅ NUEVA función para formatear fecha para nombre de archivo
+const formatearFechaParaArchivo = (fecha) => {
+    if (!fecha) return '';
+    try {
+        const date = new Date(fecha);
+        if (isNaN(date.getTime())) return '';
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}${m}${d}`;
+    } catch {
+        return '';
+    }
+};
+
+// Variantes de animación
+const containerVariants = {
+    hidden: { opacity: 0, x: 40 },
+    visible: {
+        opacity: 1,
+        x: 0,
+        transition: { duration: 0.22, ease: "easeOut" },
+    },
+};
+
+const filterGroupVariants = {
+    hidden: {},
+    visible: {
+        transition: { staggerChildren: 0.05, delayChildren: 0.05 },
+    },
+};
+
+const filterItemVariants = {
+    hidden: { opacity: 0, y: -4 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.16, ease: "easeOut" } },
+};
+
+const limpiarVariants = {
+    hidden: { scale: 0.8, opacity: 0, x: -10 },
+    visible: { scale: 1, opacity: 1, x: 0, transition: { type: "spring", stiffness: 320, damping: 22 } },
+    exit: { scale: 0.8, opacity: 0, x: -10, transition: { duration: 0.12 } },
+};
+
+// Estilos compartidos
+const inputClass =
+    "px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400 focus:border-cyan-400 transition-colors";
+
+const labelClass = "text-xs text-slate-400 font-medium";
+
+const FiltrosVentas = ({
+    filtroCategoria,
+    onFiltroCategoriaChange,
+    filtroUsuarios,
+    onFiltroUsuariosChange,
+    terminoBusqueda,
+    onBusquedaChange,
+    categorias,
+    usuariosActivos = [],
+    ventasFiltradas,
+    filtroFecha,
+    onFiltroFechaChange,
+    mostrarSoloActivas,
+    setMostrarSoloActivas,
+    ventasOriginales,
+    obtenerVentasParaExportar,   // ⬅️ NUEVA
+}) => {
+    const [mostrarCalendario, setMostrarCalendario] = useState(false);
+    const [descargando, setDescargando] = useState(false);
+    const calendarioRef = useRef(null);
+
+    const manejarCambioCategoria = (e) => onFiltroCategoriaChange(e.target.value);
+    const manejarCambioUsuarios = (e) => onFiltroUsuariosChange(e.target.value);
+    const manejarCambioBusqueda = (e) => onBusquedaChange(e.target.value);
+
+    const [mesSeleccionado, setMesSeleccionado] = useState(() => {
+        const ahora = new Date();
+        return new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    });
+
+    // src/app/dashboard/ventas/components/FiltrosVentas.jsx
+
+    const aplicarFiltroMes = (fecha) => {
+        // Asegurar que fecha es el primer día del mes
+        const primerDia = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
+
+        console.log('📅 Aplicando filtro mes:', primerDia);
+
+        // Obtener rango UTC del mes completo
+        // Necesitamos el rango desde el primer día hasta el último día del mes
+        const ultimoDia = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
+
+        // Obtener inicio UTC del primer día
+        const rangeInicio = getBoliviaDayRangeUTC(primerDia);
+        // Obtener fin UTC del último día
+        const rangeFin = getBoliviaDayRangeUTC(ultimoDia);
+
+        console.log('📅 Rango inicio:', rangeInicio);
+        console.log('📅 Rango fin:', rangeFin);
+
+        if (rangeInicio && rangeFin) {
+            const filtro = {
+                inicio: rangeInicio.inicio,
+                fin: rangeFin.fin,
+                aplicadoManualmente: true
+            };
+
+            console.log('📅 Filtro final:', filtro);
+
+            onFiltroFechaChange(filtro);
+        }
+    };
+
+    // ✅ FUNCIONES DE NAVEGACIÓN MEJORADAS
+    const mesAnterior = () => {
+        const nuevoMes = new Date(mesSeleccionado);
+        nuevoMes.setMonth(nuevoMes.getMonth() - 1);
+        setMesSeleccionado(nuevoMes);
+        aplicarFiltroMes(nuevoMes);
+    };
+
+    const mesSiguiente = () => {
+        const nuevoMes = new Date(mesSeleccionado);
+        nuevoMes.setMonth(nuevoMes.getMonth() + 1);
+        setMesSeleccionado(nuevoMes);
+        aplicarFiltroMes(nuevoMes);
+    };
+
+    const esMesActual = () => {
+        const ahora = new Date();
+        return mesSeleccionado.getMonth() === ahora.getMonth() &&
+            mesSeleccionado.getFullYear() === ahora.getFullYear();
+    };
+
+    const formatearMes = (fecha) => {
+        return fecha.toLocaleString('es', {
+            month: 'long',
+            year: 'numeric'
+        });
+    };
+
+    // ✅ FUNCIÓN MEJORADA: Obtener texto para mostrar
+    const getFechaMostrar = () => {
+        if (!filtroFecha?.inicio || !filtroFecha?.fin) return 'Seleccionar fechas';
+
+        try {
+            const inicioBolivia = utcToBoliviaDate(filtroFecha.inicio);
+            const finBolivia = utcToBoliviaDate(filtroFecha.fin);
+
+            if (!inicioBolivia || !finBolivia) return 'Seleccionar fechas';
+
+            return `${formatearFechaParaInput(inicioBolivia)} — ${formatearFechaParaInput(finBolivia)}`;
+        } catch {
+            return 'Seleccionar fechas';
+        }
+    };
+
+    // ✅ FUNCIÓN MEJORADA: Limpiar filtros
+    const limpiarFiltros = () => {
+        const ahora = new Date();
+        const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+
+        setMesSeleccionado(mesActual);
+        onBusquedaChange('');
+        onFiltroCategoriaChange('');
+        onFiltroUsuariosChange('');
+
+        // Aplicar filtro del mes actual
+        aplicarFiltroMes(mesActual);
+    };
+
+    // ✅ FUNCIÓN MEJORADA: Manejar selección de fecha
+    const manejarSeleccionFecha = (fechaInicioStr, fechaFinStr) => {
+        const [yearInicio, monthInicio, dayInicio] = fechaInicioStr.split('-').map(Number);
+        const [yearFin, monthFin, dayFin] = fechaFinStr.split('-').map(Number);
+
+        // Crear fechas en Bolivia
+        const inicioBolivia = new Date(yearInicio, monthInicio - 1, dayInicio, 0, 0, 0);
+        const finBolivia = new Date(yearFin, monthFin - 1, dayFin, 23, 59, 59, 999);
+
+        // Obtener rango UTC
+        const offset = 4 * 60 * 60 * 1000;
+        const inicioUTC = new Date(inicioBolivia.getTime() + offset);
+        const finUTC = new Date(finBolivia.getTime() + offset);
+
+        console.log('Fecha seleccionada - Inicio UTC:', inicioUTC.toISOString());
+        console.log('Fecha seleccionada - Fin UTC:', finUTC.toISOString());
+
+        onFiltroFechaChange({
+            inicio: inicioUTC.toISOString(),
+            fin: finUTC.toISOString(),
+            aplicadoManualmente: true
+        });
+        setMostrarCalendario(false);
+    };
+
+    // ✅ EFFECT: Click fuera del calendario
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (calendarioRef.current && !calendarioRef.current.contains(e.target)) {
+                setMostrarCalendario(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // ✅ EFFECT: Inicializar con el mes actual (SOLO visual, no dispara fetch)
+    useEffect(() => {
+        const ahora = new Date();
+        const mesActual = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+        setMesSeleccionado(mesActual);
+        // ⚠️ NO llamar aplicarFiltroMes aquí:
+        // useVentas ya carga el mes actual por defecto.
+    }, []);
+
+    const hayFiltrosActivos =
+        filtroCategoria ||
+        filtroUsuarios ||
+        terminoBusqueda ||
+        (filtroFecha && filtroFecha.aplicadoManualmente);
+
+    // ✅ FUNCIÓN MEJORADA: Descargar Excel
+    const descargarExcel = async () => {
+        if (!obtenerVentasParaExportar) {
+            alert('Función de exportación no disponible');
+            return;
+        }
+
+        setDescargando(true);
+
+        try {
+            // ⬅️ Consulta fresca al servidor (paginada internamente)
+            let ventasParaExportar = await obtenerVentasParaExportar(filtroFecha);
+
+            // Solo activas
+            ventasParaExportar = ventasParaExportar.filter(v => v.estado === 'activa');
+
+            if (ventasParaExportar.length === 0) {
+                alert('No hay ventas activas para descargar en el rango seleccionado');
+                return;
+            }
+
+            // Filtros adicionales (en cliente, sobre el rango ya traído)
+            if (filtroCategoria) {
+                ventasParaExportar = ventasParaExportar.filter(v =>
+                    v.categoria_nombre === filtroCategoria
+                );
+            }
+
+            if (filtroUsuarios) {
+                ventasParaExportar = ventasParaExportar.filter(v =>
+                    v.usuarios?.nombre === filtroUsuarios
+                );
+            }
+
+            if (terminoBusqueda) {
+                const termino = terminoBusqueda.toLowerCase();
+                ventasParaExportar = ventasParaExportar.filter(v =>
+                    v.producto_codigo?.toLowerCase().includes(termino) ||
+                    v.producto_nombre?.toLowerCase().includes(termino) ||
+                    v.usuarios?.nombre?.toLowerCase().includes(termino)
+                );
+            }
+
+            if (ventasParaExportar.length === 0) {
+                alert('No hay ventas que coincidan con los filtros aplicados');
+                return;
+            }
+
+            // Preparar datos para Excel
+            const datosExcel = ventasParaExportar.map((venta, index) => {
+                const fechaBolivia = formatUTCToBolivia(venta.fecha_venta, 'date');
+
+                return {
+                    'N°': index + 1,
+                    'Fecha': fechaBolivia,
+                    'Código': venta.producto_codigo || '',
+                    'Producto': venta.producto_nombre || '',
+                    'Promotor': venta.usuarios?.nombre || '',
+                    'Caja': venta.usuarios?.caja || '',
+                    'Cantidad': venta.cantidad || 0,
+                    'Precio Unitario': parseFloat(venta.producto_precio || 0).toFixed(2),
+                    'Total': parseFloat(venta.total_precio_venta || 0).toFixed(2),
+                    'Descuento': parseFloat(venta.descuento_venta || 0).toFixed(2),
+                    'Comisión': venta.productos?.comision_variable
+                        ? parseFloat(venta.productos.comision_variable).toFixed(2)
+                        : (venta.productos?.categorias?.reglas_comision?.comision_base
+                            ? parseFloat(venta.productos.categorias.reglas_comision.comision_base).toFixed(2)
+                            : '0.00'),
+                    'Categoría': venta.categoria_nombre || '',
+                    'Observaciones': venta.observaciones || '',
+                    'Estado': venta.estado || '',
+                };
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(datosExcel);
+
+            ws['!cols'] = [
+                { wch: 6 }, { wch: 12 }, { wch: 12 }, { wch: 40 }, { wch: 15 },
+                { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
+                { wch: 14 }, { wch: 15 }, { wch: 25 }, { wch: 10 },
+            ];
+
+            XLSX.utils.book_append_sheet(wb, ws, 'Ventas');
+
+            const mesNombre = mesSeleccionado.toLocaleString('es', { month: 'long', year: 'numeric' });
+            const nombreArchivo = `Ventas_${mesNombre.replace(/ /g, '_')}.xlsx`;
+
+            XLSX.writeFile(wb, nombreArchivo);
+
+        } catch (error) {
+            console.error('Error al descargar Excel:', error);
+            alert('Error al generar el archivo Excel: ' + error.message);
+        } finally {
+            setDescargando(false);
+        }
+    };
+
+    // Componente Calendario interno
+    const Calendario = ({ onSeleccionar, onCerrar }) => {
+        const hoy = new Date();
+        const hoyBolivia = utcToBoliviaDate(hoy.toISOString());
+        const [fechaInicio, setFechaInicio] = useState('');
+        const [fechaFin, setFechaFin] = useState('');
+
+        const todayStr = hoyBolivia ?
+            `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`
+            : '';
+
+        const manejarAplicar = () => {
+            if (fechaInicio && fechaFin) {
+                onSeleccionar(fechaInicio, fechaFin);
+            }
+        };
+
+        const setUltimos7Dias = () => {
+            const hoy = new Date();
+            const hoyBolivia = utcToBoliviaDate(hoy.toISOString());
+            if (!hoyBolivia) return;
+
+            const hace7 = new Date(hoyBolivia);
+            hace7.setDate(hace7.getDate() - 7);
+
+            const fechaFinStr = `${hoyBolivia.getFullYear()}-${String(hoyBolivia.getMonth() + 1).padStart(2, '0')}-${String(hoyBolivia.getDate()).padStart(2, '0')}`;
+            const fechaInicioStr = `${hace7.getFullYear()}-${String(hace7.getMonth() + 1).padStart(2, '0')}-${String(hace7.getDate()).padStart(2, '0')}`;
+
+            setFechaInicio(fechaInicioStr);
+            setFechaFin(fechaFinStr);
+            onSeleccionar(fechaInicioStr, fechaFinStr);
+        };
+
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                className="absolute top-full left-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-xl z-[100] p-4 min-w-72"
+            >
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                        Rango de fechas (Bolivia)
+                    </h3>
+                    <button
+                        onClick={onCerrar}
+                        className="text-slate-500 hover:text-slate-300 text-lg leading-none transition-colors"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <div className="space-y-3">
+                    <div>
+                        <label className={`block ${labelClass} mb-1`}>Fecha inicio</label>
+                        <input
+                            type="date"
+                            value={fechaInicio}
+                            max={fechaFin || todayStr}
+                            onChange={(e) => setFechaInicio(e.target.value)}
+                            className={`w-full ${inputClass}`}
+                        />
+                    </div>
+                    <div>
+                        <label className={`block ${labelClass} mb-1`}>Fecha fin</label>
+                        <input
+                            type="date"
+                            value={fechaFin}
+                            min={fechaInicio}
+                            max={todayStr}
+                            onChange={(e) => setFechaFin(e.target.value)}
+                            className={`w-full ${inputClass}`}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex justify-between mt-4 gap-2">
+                    <button
+                        onClick={setUltimos7Dias}
+                        className="px-3 py-1.5 text-xs bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+                    >
+                        Últimos 7 días
+                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={onCerrar}
+                            className="px-3 py-1.5 text-xs border border-slate-700 text-slate-400 rounded-lg hover:bg-slate-800 transition-colors"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            onClick={manejarAplicar}
+                            disabled={!fechaInicio || !fechaFin}
+                            className="px-3 py-1.5 text-xs bg-cyan-400 hover:bg-cyan-300 text-slate-900 font-medium rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Aplicar
+                        </button>
+                    </div>
+                </div>
+            </motion.div>
+        );
+    };
+
+    return (
+        <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="bg-gray-800 divide-gray-700 px-3 py-1 rounded-xl shadow border border-slate-800 border-l-[3px] border-l-cyan-400"
+        >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+
+                <motion.div
+                    variants={filterGroupVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="flex flex-wrap items-center gap-3"
+                >
+                    {/* Fecha */}
+                    <motion.div variants={filterItemVariants} className="flex items-center gap-2">
+                        <label className={`${labelClass} text-white`}>Fecha:</label>
+
+                        <button
+                            onClick={mesAnterior}
+                            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        <button
+                            onClick={() => setMostrarCalendario((v) => !v)}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 hover:bg-slate-700 hover:border-slate-600 focus:outline-none focus:ring-1 focus:ring-cyan-400 transition-colors min-w-[140px] justify-center"
+                        >
+                            <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <span className="text-xs font-medium capitalize">
+                                {formatearMes(mesSeleccionado)}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={mesSiguiente}
+                            disabled={esMesActual()}
+                            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-700 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+
+                        <div className="relative" ref={calendarioRef}>
+                            <AnimatePresence>
+                                {mostrarCalendario && (
+                                    <Calendario
+                                        onSeleccionar={(inicio, fin) => {
+                                            manejarSeleccionFecha(inicio, fin);
+                                            const [year, month] = inicio.split('-');
+                                            setMesSeleccionado(new Date(parseInt(year), parseInt(month) - 1, 1));
+                                        }}
+                                        onCerrar={() => setMostrarCalendario(false)}
+                                    />
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+
+                    {/* Buscar */}
+                    <motion.div variants={filterItemVariants} className="flex items-center gap-2">
+                        <label className={`${labelClass} text-white`}>Buscar:</label>
+                        <input
+                            type="text"
+                            value={terminoBusqueda}
+                            onChange={manejarCambioBusqueda}
+                            placeholder="Código, nombre..."
+                            className={`${inputClass} w-52`}
+                        />
+                    </motion.div>
+
+                    {/* Categoría */}
+                    <motion.div variants={filterItemVariants} className="flex items-center gap-2">
+                        <label className={`${labelClass} text-white`}>Filtrar por:</label>
+                        <select
+                            value={filtroCategoria}
+                            onChange={manejarCambioCategoria}
+                            className={inputClass}
+                        >
+                            <option value="">Categorías</option>
+                            {categorias.map((c) => (
+                                <option key={c} value={c}>{c}</option>
+                            ))}
+                        </select>
+                    </motion.div>
+
+                    <motion.div variants={filterItemVariants} className="flex items-center gap-2">
+                        <label className={`${labelClass} text-white`}>ó</label>
+                        <select
+                            value={filtroUsuarios}
+                            onChange={manejarCambioUsuarios}
+                            className={inputClass}
+                        >
+                            <option value="">Promotores</option>
+                            {usuariosActivos.map((nombre) => (
+                                <option key={nombre} value={nombre}>{nombre}</option>
+                            ))}
+                        </select>
+                    </motion.div>
+
+                    {/* Botones de acción */}
+                    <motion.div variants={filterItemVariants} className="flex items-center gap-4">
+                        <AnimatePresence mode="popLayout">
+                            {hayFiltrosActivos && (
+                                <motion.button
+                                    key="limpiar"
+                                    variants={limpiarVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
+                                    onClick={limpiarFiltros}
+                                    className="px-3 py-1.5 text-xs font-medium text-white bg-red-950 border border-red-800 rounded-lg hover:bg-red-900 hover:border-red-700 transition-colors whitespace-nowrap"
+                                >
+                                    Limpiar filtros
+                                </motion.button>
+                            )}
+                        </AnimatePresence>
+
+                        <button
+                            onClick={descargarExcel}
+                            disabled={descargando}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-green-700 border border-green-600 rounded-lg hover:bg-green-600 hover:border-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                        >
+                            {descargando ? (
+                                <>
+                                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                    </svg>
+                                    Descargando...
+                                </>
+                            ) : (
+                                <>
+                                    <Download className="w-3.5 h-3.5" />
+                                    Descargar Ventas
+                                </>
+                            )}
+                        </button>
+                    </motion.div>
+                </motion.div>
+
+                {/* Contador + toggle */}
+                <motion.div
+                    variants={filterItemVariants}
+                    className="flex flex-col gap-1.5 items-end"
+                >
+                    <span className="text-xs font-semibold text-white">
+                        Mostrando:{" "}
+                        <span className="text-cyan-400">{ventasFiltradas?.length || 0}</span>{" "}
+                        ventas
+                    </span>
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={mostrarSoloActivas}
+                            onChange={() => setMostrarSoloActivas(!mostrarSoloActivas)}
+                            className="sr-only"
+                        />
+                        <div
+                            className={`w-8 h-4 rounded-full relative transition-colors duration-200 ${mostrarSoloActivas ? 'bg-cyan-400' : 'bg-slate-700'
+                                }`}
+                        >
+                            <div
+                                className={`absolute top-[2px] left-[2px] w-3 h-3 bg-white rounded-full shadow transition-transform duration-200 ${mostrarSoloActivas ? 'translate-x-4' : ''
+                                    }`}
+                            />
+                        </div>
+                        <span className="text-xs text-white">Solo activas</span>
+                    </label>
+                </motion.div>
+
+            </div>
+        </motion.div>
+    );
+};
+
+export default FiltrosVentas;
