@@ -7,6 +7,7 @@ import Tabla from './components/Tabla';
 import ModalNuevoProducto from './components/ModalNuevoProducto';
 import ModalEditarProducto from './components/ModalEditarProducto';
 import { useProductos } from './hooks/useProductos';
+import { useDescargarExcelProductos } from './hooks/useDescargarExcelProductos';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 
 export default function GestionProductos() {
@@ -31,6 +32,9 @@ export default function GestionProductos() {
         eliminarProducto,
         recargarProductos
     } = useProductos(sucursalSeleccionada?.id);
+
+    // ✅ Hook de descarga Excel
+    const { descargarExcel, descargando: descargandoExcel } = useDescargarExcelProductos();
 
     const handleCrearProducto = async (datosProducto) => {
         const productoConSucursal = {
@@ -64,17 +68,27 @@ export default function GestionProductos() {
         }
     };
 
+    // ✅ Handler del botón Descargar Excel
+    const handleDescargarExcel = async () => {
+        await descargarExcel({
+            productosVisibles: productos,        // el hook aplica los filtros según rol
+            filtros: { filtro, categoriaFiltro, soloActivos }
+        });
+    };
+
     return (
-        <div className="p-3 space-y-1 text-gray-800">
+        <div className="p-2 sm:p-3 space-y-2 text-gray-800 w-full max-w-screen-2xl mx-auto">
             <Header
                 onNuevoProducto={() => setModalNuevoAbierto(true)}
                 onRecargar={recargarProductos}
                 loading={loading}
                 sucursalSeleccionada={sucursalSeleccionada}
+                onDescargarExcel={handleDescargarExcel}   // ✅ nueva prop
+                descargandoExcel={descargandoExcel}       // ✅ nueva prop
             />
 
             {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                <div className="bg-red-100 border border-red-400 text-red-700 px-3 sm:px-4 py-2 sm:py-3 rounded text-sm">
                     {error}
                 </div>
             )}
@@ -104,7 +118,7 @@ export default function GestionProductos() {
                 categorias={categorias}
                 loading={loading}
                 sucursalSeleccionada={sucursalSeleccionada}
-                productosExistentes={catalogoGlobal}   // 🔹 Catálogo global completo
+                productosExistentes={catalogoGlobal}
             />
 
             {productoEditando && (
@@ -115,7 +129,7 @@ export default function GestionProductos() {
                     categorias={categorias}
                     loading={loading}
                     sucursalSeleccionada={sucursalSeleccionada}
-                    productosExistentes={catalogoGlobal}   // 🔹 Catálogo global completo
+                    productosExistentes={catalogoGlobal}
                 />
             )}
         </div>

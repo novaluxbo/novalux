@@ -34,6 +34,8 @@ export const useProductos = (sucursalId) => {
                     nombre,
                     descripcion,
                     precio,
+                    precio_mayorista,
+                    fecha_vencimiento,
                     costo,
                     comision_variable,
                     activo,
@@ -52,7 +54,7 @@ export const useProductos = (sucursalId) => {
 
             if (error) throw error;
 
-            const { data: sucursalData, error: errorSucursal } = await supabase
+            const { data: sucursalData } = await supabase
                 .from('sucursales')
                 .select('id, nombre')
                 .eq('id', sucursal_id)
@@ -66,6 +68,8 @@ export const useProductos = (sucursalId) => {
                     nombre: item.producto.nombre,
                     descripcion: item.producto.descripcion,
                     precio: item.producto.precio,
+                    precio_mayorista: item.producto.precio_mayorista,
+                    fecha_vencimiento: item.producto.fecha_vencimiento,
                     costo: item.producto.costo,
                     comision_variable: item.producto.comision_variable,
                     stock_actual: item.stock_actual,
@@ -93,8 +97,6 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-    // 🔹 Catálogo global: TODOS los productos (sin importar stock en sucursal)
-    // Se usa para validar códigos únicos globalmente
     const cargarCatalogoGlobal = async () => {
         try {
             const { data, error } = await supabase
@@ -109,9 +111,7 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-    const { values: localStorageValues } = useMultiLocalStorageListener([
-        'currentUser'
-    ]);
+    const { values: localStorageValues } = useMultiLocalStorageListener(['currentUser']);
 
     const getCurrentUser = () => {
         return localStorageValues.currentUser?.roles?.nombre || null;
@@ -168,13 +168,27 @@ export const useProductos = (sucursalId) => {
             }
         }
 
+        // ✅ Validar fecha de vencimiento según rol (por nombre, no por id)
+        if (productoData.fecha_vencimiento) {
+            const esAdminUsuario = localStorageValues.currentUser?.roles?.nombre === 'admin';
+
+            if (!esAdminUsuario) {
+                const hoy = new Date();
+                hoy.setHours(0, 0, 0, 0);
+                const fechaVenc = new Date(productoData.fecha_vencimiento + 'T00:00:00');
+
+                if (!isNaN(fechaVenc.getTime()) && fechaVenc < hoy) {
+                    errors.fecha_vencimiento = 'Solo administradores pueden registrar fechas pasadas. Debes usar una fecha futura.';
+                }
+            }
+        }
+
         return {
             isValid: Object.keys(errors).length === 0,
             errors
         };
     };
 
-    // Crear nuevo producto (global + stock en todas las sucursales)
     const crearProducto = async (productoData) => {
         setLoading(true);
         setError(null);
@@ -192,7 +206,6 @@ export const useProductos = (sucursalId) => {
             const stockMinimo = parseInt(productoData.stock_minimo) || 0;
             const codigoNormalizado = productoData.codigo.trim();
 
-            // 1. Verificar si el código ya existe en el catálogo GLOBAL
             const { data: catalogoExistente, error: errorBusquedaCatalogo } = await supabase
                 .from('productos')
                 .select('id, codigo, nombre')
@@ -210,7 +223,6 @@ export const useProductos = (sucursalId) => {
                 return { success: false, error: msg, errors: { codigo: msg } };
             }
 
-            // 2. Crear producto en catálogo global
             const { data: nuevoCatalogo, error: errorCatalogo } = await supabase
                 .from('productos')
                 .insert({
@@ -219,6 +231,12 @@ export const useProductos = (sucursalId) => {
                     descripcion: productoData.descripcion?.trim() || null,
                     categoria_id: parseInt(productoData.categoria_id),
                     precio: parseFloat(productoData.precio),
+                    precio_mayorista: productoData.precio_mayorista !== null &&
+                        productoData.precio_mayorista !== undefined &&
+                        productoData.precio_mayorista !== ''
+                        ? parseFloat(productoData.precio_mayorista)
+                        : null,
+                    fecha_vencimiento: productoData.fecha_vencimiento || null,
                     costo: productoData.costo ? parseFloat(productoData.costo) : null,
                     comision_variable: categoriaPermiteComisionVariable(productoData.categoria_id) && productoData.comision_variable
                         ? parseFloat(productoData.comision_variable)
@@ -231,7 +249,6 @@ export const useProductos = (sucursalId) => {
             if (errorCatalogo) throw errorCatalogo;
             const productoId = nuevoCatalogo.id;
 
-            // 3. Obtener TODAS las sucursales activas
             const { data: sucursalesActivas, error: errorSucursales } = await supabase
                 .from('sucursales')
                 .select('id, nombre')
@@ -239,13 +256,10 @@ export const useProductos = (sucursalId) => {
 
             if (errorSucursales) throw errorSucursales;
             if (!sucursalesActivas || sucursalesActivas.length === 0) {
-                // Rollback del producto recién creado
                 await supabase.from('productos').delete().eq('id', productoId);
                 throw new Error('No hay sucursales activas para asignar stock');
             }
 
-            // 4. Crear fila de stock en TODAS las sucursales
-            //    Stock inicial/mínimo solo en la sucursal actual; el resto en 0
             const stocksAInsertar = sucursalesActivas.map(s => ({
                 producto_id: productoId,
                 sucursal_id: s.id,
@@ -266,12 +280,10 @@ export const useProductos = (sucursalId) => {
                 `);
 
             if (errorStock) {
-                // Rollback manual: borrar el producto recién creado
                 await supabase.from('productos').delete().eq('id', productoId);
                 throw errorStock;
             }
 
-            // 5. Formatear el producto de la sucursal actual para el state local
             const stockActual = stocksCreados.find(s => s.sucursal_id === sucursal_id);
             const sucursalInfo = sucursalesActivas.find(s => s.id === sucursal_id);
 
@@ -281,6 +293,8 @@ export const useProductos = (sucursalId) => {
                 nombre: nuevoCatalogo.nombre,
                 descripcion: nuevoCatalogo.descripcion,
                 precio: nuevoCatalogo.precio,
+                precio_mayorista: nuevoCatalogo.precio_mayorista,
+                fecha_vencimiento: nuevoCatalogo.fecha_vencimiento,
                 costo: nuevoCatalogo.costo,
                 comision_variable: nuevoCatalogo.comision_variable,
                 stock_actual: stockActual?.stock_actual ?? 0,
@@ -300,7 +314,6 @@ export const useProductos = (sucursalId) => {
 
             setProductos(prev => [productoCompleto, ...prev]);
 
-            // 🔹 Actualizar catálogo global en memoria para que la próxima validación lo vea
             setCatalogoGlobal(prev => [
                 ...prev,
                 {
@@ -326,7 +339,6 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-    // Actualizar producto existente
     const actualizarProducto = async (id, productoData) => {
         setLoading(true);
         setError(null);
@@ -342,7 +354,6 @@ export const useProductos = (sucursalId) => {
         try {
             const codigoNormalizado = productoData.codigo.trim();
 
-            // 🔹 Validar código duplicado globalmente (excluyendo el producto actual)
             const { data: codigoExistente, error: errorCodigo } = await supabase
                 .from('productos')
                 .select('id, codigo, nombre')
@@ -361,7 +372,6 @@ export const useProductos = (sucursalId) => {
                 return { success: false, error: msg, errors: { codigo: msg } };
             }
 
-            // 1. Actualizar en catálogo
             const { data: catalogoActualizado, error: errorCatalogo } = await supabase
                 .from('productos')
                 .update({
@@ -370,6 +380,12 @@ export const useProductos = (sucursalId) => {
                     descripcion: productoData.descripcion?.trim() || null,
                     categoria_id: parseInt(productoData.categoria_id),
                     precio: parseFloat(productoData.precio),
+                    precio_mayorista: productoData.precio_mayorista !== null &&
+                        productoData.precio_mayorista !== undefined &&
+                        productoData.precio_mayorista !== ''
+                        ? parseFloat(productoData.precio_mayorista)
+                        : null,
+                    fecha_vencimiento: productoData.fecha_vencimiento || null,
                     costo: productoData.costo ? parseFloat(productoData.costo) : null,
                     comision_variable: categoriaPermiteComisionVariable(productoData.categoria_id) && productoData.comision_variable
                         ? parseFloat(productoData.comision_variable)
@@ -386,7 +402,6 @@ export const useProductos = (sucursalId) => {
 
             if (errorCatalogo) throw errorCatalogo;
 
-            // 2. Actualizar stock_minimo en productos_stock (solo sucursal actual)
             const { error: errorStock } = await supabase
                 .from('productos_stock')
                 .update({
@@ -398,7 +413,6 @@ export const useProductos = (sucursalId) => {
 
             if (errorStock) throw errorStock;
 
-            // 3. Obtener stock actualizado
             const { data: stockActualizado, error: errorStockGet } = await supabase
                 .from('productos_stock')
                 .select('*')
@@ -408,14 +422,12 @@ export const useProductos = (sucursalId) => {
 
             if (errorStockGet && errorStockGet.code !== 'PGRST116') throw errorStockGet;
 
-            // Obtener sucursal
             const { data: sucursalInfo } = await supabase
                 .from('sucursales')
                 .select('id, nombre')
                 .eq('id', sucursal_id)
                 .single();
 
-            // Formatear respuesta
             const productoCompleto = {
                 ...catalogoActualizado,
                 sucursal_id: sucursal_id,
@@ -432,7 +444,6 @@ export const useProductos = (sucursalId) => {
                 prod.id === id ? productoCompleto : prod
             ));
 
-            // 🔹 Sincronizar catálogo global en memoria
             setCatalogoGlobal(prev => prev.map(cat =>
                 cat.id === id
                     ? { ...cat, codigo: catalogoActualizado.codigo, nombre: catalogoActualizado.nombre, activo: catalogoActualizado.activo }
@@ -454,7 +465,6 @@ export const useProductos = (sucursalId) => {
         }
     };
 
-    // Eliminar producto (soft delete)
     const eliminarProducto = async (id) => {
         setLoading(true);
         try {

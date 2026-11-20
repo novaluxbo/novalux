@@ -19,6 +19,8 @@ import {
     ArrowTrendingDownIcon,
     GlobeAltIcon
 } from '@heroicons/react/24/outline';
+import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
+import { parsearFechaVencimiento } from '@/utils/fechasProducto';
 
 export default function ModalNuevoProducto({
     abierto,
@@ -27,7 +29,7 @@ export default function ModalNuevoProducto({
     categorias,
     loading,
     sucursalSeleccionada,
-    productosExistentes = [] // 🔹 Catálogo global (todos los productos)
+    productosExistentes = []
 }) {
     const [formData, setFormData] = useState({
         codigo: '',
@@ -35,6 +37,8 @@ export default function ModalNuevoProducto({
         descripcion: '',
         categoria_id: '',
         precio: '',
+        precio_mayorista: '',
+        fecha_vencimiento: '',
         costo: '',
         comision_variable: '',
         stock_inicial: 0,
@@ -43,10 +47,14 @@ export default function ModalNuevoProducto({
     });
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState('');
-    const [codigoDuplicado, setCodigoDuplicado] = useState(null); // 🔹 objeto producto o null
+    const [codigoDuplicado, setCodigoDuplicado] = useState(null);
     const [validandoCodigo, setValidandoCodigo] = useState(false);
 
-    // 🔹 Verifica si el código ya existe en el catálogo GLOBAL
+    // ✅ Detectar rol
+    const { values } = useMultiLocalStorageListener(["currentUser"]);
+    const { currentUser } = values;
+    const esAdmin = currentUser?.roles?.nombre === 'admin';
+
     const verificarCodigoDuplicado = useCallback((codigo) => {
         if (!codigo || !productosExistentes || productosExistentes.length === 0) {
             return null;
@@ -62,7 +70,6 @@ export default function ModalNuevoProducto({
         return encontrado || null;
     }, [productosExistentes]);
 
-    // Verificar código duplicado en tiempo real con debounce
     useEffect(() => {
         const timer = setTimeout(() => {
             if (formData.codigo && formData.codigo.length > 0) {
@@ -114,6 +121,8 @@ export default function ModalNuevoProducto({
                 descripcion: '',
                 categoria_id: '',
                 precio: '',
+                precio_mayorista: '',
+                fecha_vencimiento: '',
                 costo: '',
                 comision_variable: '',
                 stock_inicial: 0,
@@ -127,7 +136,6 @@ export default function ModalNuevoProducto({
         }
     }, [abierto]);
 
-    // Función inline para validar formato del código
     const validarFormatoCodigo = (codigo) => {
         const codigoTrimmed = codigo.trim();
 
@@ -205,12 +213,30 @@ export default function ModalNuevoProducto({
         if (!formData.categoria_id) erroresValidacion.categoria_id = 'La categoría es obligatoria';
         if (!formData.precio || parseFloat(formData.precio) <= 0) erroresValidacion.precio = 'El precio debe ser mayor a 0';
 
+        // ✅ Parsear fecha de vencimiento
+        const fechaISO = formData.fecha_vencimiento
+            ? parsearFechaVencimiento(formData.fecha_vencimiento)
+            : null;
+
+        if (formData.fecha_vencimiento && !fechaISO) {
+            erroresValidacion.fecha_vencimiento = 'Formato inválido. Usa DD-MM-YYYY (ej. 24-12-2027)';
+        }
+
+        // ✅ Validar restricción por rol (solo admin puede fechas pasadas)
+        if (fechaISO && !esAdmin) {
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const fv = new Date(fechaISO + 'T00:00:00');
+            if (fv < hoy) {
+                erroresValidacion.fecha_vencimiento = 'Solo administradores pueden registrar fechas pasadas';
+            }
+        }
+
         if (Object.keys(erroresValidacion).length > 0) {
             setErrors(erroresValidacion);
             return;
         }
 
-        // 🔹 Si el código ya existe en catálogo global → bloquear
         if (codigoDuplicado) {
             setErrors({
                 codigo: `El código "${formData.codigo}" ya existe en el catálogo (producto: "${codigoDuplicado.nombre}"). Los códigos son únicos globalmente.`
@@ -226,6 +252,8 @@ export default function ModalNuevoProducto({
         const resultado = await onCrearProducto({
             ...formData,
             precio: parseFloat(formData.precio) || 0,
+            precio_mayorista: formData.precio_mayorista !== '' ? parseFloat(formData.precio_mayorista) : null,
+            fecha_vencimiento: fechaISO,
             costo: formData.costo ? parseFloat(formData.costo) : null,
             comision_variable: formData.comision_variable ? parseFloat(formData.comision_variable) : null,
             stock_inicial: parseInt(formData.stock_inicial) || 0,
@@ -257,22 +285,38 @@ export default function ModalNuevoProducto({
         ? ((parseFloat(formData.comision_variable) / parseFloat(formData.precio)) * 100).toFixed(1)
         : null;
 
-    // ... (animaciones idénticas al original, las omito aquí por brevedad pero van completas)
-    const modalVariants = { /* ... */ };
-    const backdropVariants = { /* ... */ };
-    const formVariants = { /* ... */ };
-    const itemVariants = { /* ... */ };
-    const inputFocusVariants = { /* ... */ };
+    // Animaciones
+    const modalVariants = {
+        hidden: { opacity: 0, scale: 0.95, y: 20 },
+        visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+        exit: { opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.2 } }
+    };
+    const backdropVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { duration: 0.3 } },
+        exit: { opacity: 0, transition: { duration: 0.2 } }
+    };
+    const formVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.1 } }
+    };
+    const itemVariants = {
+        hidden: { opacity: 0, y: 10 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+    };
+    const inputFocusVariants = {
+        focus: { scale: 1.02, transition: { duration: 0.2 } }
+    };
 
     return (
         <AnimatePresence>
             {abierto && (
-                <motion.div /* backdrop */ variants={backdropVariants} initial="hidden" animate="visible" exit="exit"
+                <motion.div variants={backdropVariants} initial="hidden" animate="visible" exit="exit"
                     className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
                     onClick={onCerrar}>
                     <motion.div variants={modalVariants} initial="hidden" animate="visible" exit="exit"
                         onClick={(e) => e.stopPropagation()}
-                        className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+                        className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 p-4">
                             <div className="flex items-center justify-between">
@@ -310,7 +354,7 @@ export default function ModalNuevoProducto({
                             </div>
                         </div>
 
-                        {/* 🔹 Banner informativo: el producto se creará para todas las sucursales */}
+                        {/* Banner informativo */}
                         <div className="mx-6 mt-4">
                             <div className="p-3 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl">
                                 <div className="flex items-start">
@@ -364,11 +408,10 @@ export default function ModalNuevoProducto({
                             )}
                         </AnimatePresence>
 
-                        {/* FORMULARIO — igual al original, solo cambios abajo */}
+                        {/* FORMULARIO */}
                         <motion.form variants={formVariants} initial="hidden" animate="visible" onSubmit={handleSubmit}
                             className="p-6 space-y-6">
-                            {/* Formulario */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {/* Código */}
                                 <motion.div variants={itemVariants} className="space-y-2">
                                     <label className="block text-sm font-semibold text-gray-700 flex items-center">
@@ -452,7 +495,6 @@ export default function ModalNuevoProducto({
                                         )}
                                     </div>
 
-                                    {/* Mensaje de error del formulario */}
                                     {errors.codigo && !codigoDuplicado && (
                                         <p className="text-red-500 text-sm mt-1 flex items-center">
                                             <ExclamationCircleIcon className="h-3 w-3 mr-1" />
@@ -533,13 +575,10 @@ export default function ModalNuevoProducto({
                                             variants={inputFocusVariants}
                                             type="text"
                                             inputMode="decimal"
-                                            pattern="[0-9]*"
-                                            step="0.01"
-                                            min="0"
                                             name="precio"
                                             value={formData.precio}
                                             onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, ''); // solo números y punto
+                                                const value = e.target.value.replace(/[^0-9.]/g, '');
                                                 handleChange({
                                                     target: {
                                                         name: "precio",
@@ -562,6 +601,86 @@ export default function ModalNuevoProducto({
                                     )}
                                 </motion.div>
 
+                                {/* Precio Mayorista */}
+                                <motion.div variants={itemVariants} className="space-y-2">
+                                    <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                        <CurrencyDollarIcon className="h-4 w-4 mr-2 text-gray-400" />
+                                        Precio Mayorista
+                                        <span className="ml-1 text-xs text-gray-500">(opcional)</span>
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-3 text-gray-500">Bs.</span>
+                                        <motion.input
+                                            whileFocus="focus"
+                                            variants={inputFocusVariants}
+                                            type="text"
+                                            inputMode="decimal"
+                                            name="precio_mayorista"
+                                            value={formData.precio_mayorista}
+                                            onChange={(e) => {
+                                                let value = e.target.value
+                                                    .replace(/[^0-9.]/g, '')
+                                                    .replace(/(\..*)\./g, '$1');
+                                                handleChange({ target: { name: 'precio_mayorista', value } });
+                                            }}
+                                            className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${errors.precio_mayorista
+                                                ? 'border-red-300 bg-red-50 text-red-900'
+                                                : 'border-gray-300 bg-gray-50 text-gray-900'
+                                                }`}
+                                            placeholder="0.00 (dejar vacío si no aplica)"
+                                        />
+                                    </div>
+                                    <p className="text-xs text-gray-500 flex items-center mt-1">
+                                        <InformationCircleIcon className="h-3 w-3 mr-1" />
+                                        Se usará para ventas al por mayor. Si se deja vacío, el producto no tendrá precio mayorista.
+                                    </p>
+                                    {errors.precio_mayorista && (
+                                        <p className="text-red-500 text-sm mt-1 flex items-center">
+                                            <ExclamationCircleIcon className="h-3 w-3 mr-1" />
+                                            {errors.precio_mayorista}
+                                        </p>
+                                    )}
+                                </motion.div>
+
+                                {/* Fecha de Vencimiento */}
+                                <motion.div variants={itemVariants} className="space-y-2">
+                                    <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                        <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        Fecha de Vencimiento
+                                        <span className="ml-1 text-xs text-gray-500">(opcional)</span>
+                                    </label>
+                                    <motion.input
+                                        whileFocus="focus"
+                                        variants={inputFocusVariants}
+                                        type="text"
+                                        name="fecha_vencimiento"
+                                        value={formData.fecha_vencimiento}
+                                        onChange={(e) => {
+                                            let value = e.target.value.replace(/[^0-9./-]/g, '');
+                                            handleChange({ target: { name: 'fecha_vencimiento', value } });
+                                        }}
+                                        className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${errors.fecha_vencimiento
+                                            ? 'border-red-300 bg-red-50 text-red-900'
+                                            : 'border-gray-300 bg-gray-50 text-gray-900'
+                                            }`}
+                                        placeholder="DD-MM-YYYY (ej. 24-12-2027)"
+                                    />
+                                    <p className="text-xs text-gray-500 flex items-center mt-1">
+                                        <InformationCircleIcon className="h-3 w-3 mr-1" />
+                                        {esAdmin
+                                            ? 'Admin: puede usar fechas pasadas o futuras'
+                                            : 'Solo fechas futuras (a partir de hoy)'}
+                                    </p>
+                                    {errors.fecha_vencimiento && (
+                                        <p className="text-red-500 text-sm mt-1 flex items-center">
+                                            <ExclamationCircleIcon className="h-3 w-3 mr-1" />
+                                            {errors.fecha_vencimiento}
+                                        </p>
+                                    )}
+                                </motion.div>
+
                                 {/* Costo */}
                                 <motion.div variants={itemVariants} className="space-y-2">
                                     <label className="block text-sm font-semibold text-gray-700 flex items-center">
@@ -574,15 +693,13 @@ export default function ModalNuevoProducto({
                                             whileFocus="focus"
                                             variants={inputFocusVariants}
                                             type="text"
-                                            inputMode="decimal"   // para teclado numérico con punto en móviles
-                                            step="0.01"
-                                            min="0"
+                                            inputMode="decimal"
                                             name="costo"
                                             value={formData.costo}
                                             onChange={(e) => {
                                                 let value = e.target.value
-                                                    .replace(/[^0-9.]/g, '')      // solo números y punto
-                                                    .replace(/(\..*)\./g, '$1');  // evita doble punto
+                                                    .replace(/[^0-9.]/g, '')
+                                                    .replace(/(\..*)\./g, '$1');
 
                                                 handleChange({
                                                     target: { name: "costo", value }
@@ -628,8 +745,6 @@ export default function ModalNuevoProducto({
                                             variants={inputFocusVariants}
                                             type="text"
                                             inputMode="decimal"
-                                            step="0.01"
-                                            min="0"
                                             name="comision_variable"
                                             value={formData.comision_variable}
                                             disabled={!permiteComisionVariable}
@@ -637,8 +752,8 @@ export default function ModalNuevoProducto({
                                                 if (!permiteComisionVariable) return;
 
                                                 let value = e.target.value
-                                                    .replace(/[^0-9.]/g, '')       // solo números y punto
-                                                    .replace(/(\..*)\./g, '$1');   // evita doble punto decimal
+                                                    .replace(/[^0-9.]/g, '')
+                                                    .replace(/(\..*)\./g, '$1');
 
                                                 handleChange({
                                                     target: { name: "comision_variable", value }
@@ -695,12 +810,10 @@ export default function ModalNuevoProducto({
                                         variants={inputFocusVariants}
                                         type="text"
                                         inputMode="numeric"
-                                        min="0"
                                         name="stock_inicial"
                                         value={formData.stock_inicial}
                                         onChange={(e) => {
-                                            const value = e.target.value.replace(/[^0-9]/g, ""); // solo números enteros
-
+                                            const value = e.target.value.replace(/[^0-9]/g, "");
                                             handleChange({
                                                 target: { name: "stock_inicial", value }
                                             });
@@ -708,6 +821,7 @@ export default function ModalNuevoProducto({
                                         className="w-full px-4 py-3 border border-gray-300 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-gray-900"
                                     />
                                 </motion.div>
+
                                 {/* Stock Mínimo */}
                                 <motion.div variants={itemVariants} className="space-y-2">
                                     <label className="block text-sm font-semibold text-gray-700 flex items-center">
@@ -722,8 +836,7 @@ export default function ModalNuevoProducto({
                                         name="stock_minimo"
                                         value={formData.stock_minimo}
                                         onChange={(e) => {
-                                            const value = e.target.value.replace(/[^0-9]/g, ""); // solo números
-
+                                            const value = e.target.value.replace(/[^0-9]/g, "");
                                             handleChange({
                                                 target: { name: "stock_minimo", value }
                                             });
@@ -732,6 +845,7 @@ export default function ModalNuevoProducto({
                                     />
                                 </motion.div>
                             </div>
+
                             {/* Descripción */}
                             <motion.div variants={itemVariants} className="space-y-2">
                                 <label className="block text-sm font-semibold text-gray-700 flex items-center">

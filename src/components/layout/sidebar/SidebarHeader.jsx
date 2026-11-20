@@ -5,8 +5,8 @@ import { MapPin } from 'lucide-react'
 import { useSucursal } from '@/contexts/SucursalContext'
 import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener'
 import { useCallback, useMemo, memo, useEffect } from 'react'
+import AnimatedLogo from './AnimatedLogo'   // ✅ nuevo import
 
-// Componente memoizado para evitar re-renderizados
 const SidebarHeader = memo(({ isCollapsed }) => {
     const {
         sucursalSeleccionada,
@@ -37,26 +37,20 @@ const SidebarHeader = memo(({ isCollapsed }) => {
         return userRole === 'admin' || userRole === 'supervisor';
     }, [currentUser]);
 
-    // Seleccionar automáticamente la sucursal del usuario
     useEffect(() => {
-        // Si no hay sucursal seleccionada y tenemos el usuario
         if (!sucursalSeleccionada && currentUser && sucursales.length > 0 && !loading) {
-
             if (isSupervisorOrAdmin) {
-                // Para admin/supervisor: seleccionar la primera sucursal activa
                 const primeraSucursalActiva = sucursales.find(s => s.activo === true || s.activo === 1);
                 if (primeraSucursalActiva) {
                     selectSucursal(primeraSucursalActiva.id, primeraSucursalActiva.nombre);
                 }
             } else {
-                // Para promotores/empleados: usar su sucursal asignada
                 const userSucursalId = currentUser?.sucursal_id;
                 const userSucursal = sucursales.find(s => s.id === userSucursalId && (s.activo === true || s.activo === 1));
 
                 if (userSucursal) {
                     selectSucursal(userSucursal.id, userSucursal.nombre);
                 } else if (sucursales.length > 0) {
-                    // Fallback: primera sucursal activa
                     const primeraSucursal = sucursales.find(s => s.activo === true || s.activo === 1);
                     if (primeraSucursal) {
                         selectSucursal(primeraSucursal.id, primeraSucursal.nombre);
@@ -67,58 +61,47 @@ const SidebarHeader = memo(({ isCollapsed }) => {
     }, [currentUser, sucursales, loading, sucursalSeleccionada, selectSucursal, isSupervisorOrAdmin]);
 
     return (
-        <div className="border-b border-blue-500/30 bg-gradient-to-r from-blue-600 to-blue-700">
-            {/* Header con altura fija para evitar saltos */}
+        <div className="border-b border-emerald-800 bg-gradient-to-r from-emerald-900 to-emerald-950">
+            {/* Header con altura fija */}
             <div className={`${isCollapsed ? 'py-3 px-4' : 'py-4 px-6'} transition-all duration-200`}>
                 <div className="flex items-center gap-3">
-                    {/* Logo - siempre visible, mismo tamaño */}
-                    <div className="bg-white p-2 rounded-xl flex-shrink-0">
-                        <img
-                            src="/image/empresa/icono_logo.png"
-                            alt="Logo empresa"
-                            className="w-7 h-7"
-                        />
+                    {/* ✅ Logo animado (reemplaza el <img> estático) */}
+                    <div className="bg-emerald-50 p-2 rounded-xl flex-shrink-0">
+                        <AnimatedLogo isCollapsed={isCollapsed} />
                     </div>
-                    {/* Texto - solo visible cuando expandido */}
+
                     <div className={`min-w-0 flex-1 transition-opacity duration-200 ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
-                        <h1 className="text-lg font-bold text-white truncate">
+                        <h1 className="text-lg font-bold text-emerald-50 truncate">
                             Jard Complications
                         </h1>
-                        {/* Mostrar nombre de sucursal o texto por defecto */}
-                        <p className="text-blue-100/80 text-xs truncate">
-                            {isSupervisorOrAdmin ? (
-                                // Para admin/supervisor: mostrar "Torre Fuerte" o nombre de sucursal seleccionada
-                                sucursalSeleccionada?.nombre || 'Torre Fuerte'
-                            ) : (
-                                // Para promotores: mostrar su sucursal asignada
-                                sucursalSeleccionada?.nombre || 'Torre Fuerte'
-                            )}
+                        <p className="text-emerald-300 text-xs truncate">
+                            {sucursalSeleccionada?.nombre || 'Torre Fuerte'}
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* Selector de sucursal - solo para admin/supervisor */}
+            {/* Selector de sucursal */}
             {isSupervisorOrAdmin && (
                 <div className={`overflow-hidden transition-all duration-200 ${isCollapsed ? 'max-h-0 opacity-0' : 'max-h-32 opacity-100'}`}>
                     <div className="px-4 pb-4">
-                        <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
+                        <div className="bg-emerald-800/50 backdrop-blur-sm rounded-lg p-3 border border-emerald-700">
                             <div className="flex items-center gap-2 mb-2">
-                                <MapPin className="w-4 h-4 text-blue-200 flex-shrink-0" />
-                                <label className="text-blue-100 text-sm font-medium truncate">
+                                <MapPin className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                <label className="text-emerald-200 text-sm font-medium truncate">
                                     Cambiar Sucursal
                                 </label>
                             </div>
 
                             {loading ? (
                                 <div className="text-center py-2">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mx-auto"></div>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-amber-400 mx-auto"></div>
                                 </div>
                             ) : (
                                 <select
                                     value={sucursalSeleccionada?.id || ''}
                                     onChange={handleSucursalChange}
-                                    className="w-full bg-white/90 border border-white/30 rounded-lg px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-white/50 transition-colors"
+                                    className="w-full bg-emerald-950 border border-emerald-700 rounded-lg px-3 py-2 text-sm text-emerald-50 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors"
                                 >
                                     <option value="">Seleccionar sucursal</option>
                                     {sucursales

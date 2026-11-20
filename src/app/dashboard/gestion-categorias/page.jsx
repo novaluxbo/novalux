@@ -39,27 +39,12 @@ const GestionCategorias = () => {
         try {
             await crearCategoria(categoriaData);
             setMostrarModalNueva(false);
-
-            return {
-                success: true
-            };
+            return { success: true };
         } catch (error) {
             console.error('Error al crear categoría:', error);
-
-            // Si el error viene del servidor con una estructura específica
-            if (error.response?.data?.errors) {
-                return {
-                    success: false,
-                    errors: error.response.data.errors
-                };
-            }
-
-            // Error general
             return {
                 success: false,
-                errors: {
-                    general: error.message || 'Error al crear la categoría'
-                }
+                errors: { general: error.message || 'Error al crear la categoría' },
             };
         }
     };
@@ -84,10 +69,10 @@ const GestionCategorias = () => {
     };
 
     const handleEliminarCategoria = async (categoria) => {
-        const motivo = prompt('Ingrese el motivo de la desactivación:');
-        if (motivo) {
+        const motivo = prompt(`Ingrese el motivo para desactivar "${categoria.nombre}":`);
+        if (motivo && motivo.trim().length > 0) {
             try {
-                await eliminarCategoria(categoria.id, motivo);
+                await eliminarCategoria(categoria.id, motivo.trim());
             } catch (error) {
                 console.error('Error al eliminar categoría:', error);
             }
@@ -95,6 +80,7 @@ const GestionCategorias = () => {
     };
 
     const handleReactivarCategoria = async (categoria) => {
+        if (!confirm(`¿Reactivar la categoría "${categoria.nombre}"?`)) return;
         try {
             await reactivarCategoria(categoria.id);
         } catch (error) {
@@ -109,18 +95,24 @@ const GestionCategorias = () => {
 
     if (loading && categorias.length === 0) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-lg">Cargando...</div>
+            <div className="min-h-screen flex items-center justify-center bg-emerald-950">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-400"></div>
+                    <p className="text-emerald-200 text-sm">Cargando categorías...</p>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="container mx-auto px-4 py-4 text-green-600">
-            <Header onNuevaCategoria={() => setMostrarModalNueva(true)} />
+        <div className="min-h-screen p-1 space-y-1 text-gray-800">
+            <Header
+                onNuevaCategoria={() => setMostrarModalNueva(true)}
+                totalCategorias={categorias.length}
+            />
 
             {error && (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+                <div className="bg-rose-100 border border-rose-400 text-rose-700 px-3 py-2 rounded text-sm">
                     {error}
                 </div>
             )}
@@ -133,7 +125,6 @@ const GestionCategorias = () => {
                 onReglasComision={abrirModalReglas}
             />
 
-            {/* Modales */}
             <ModalNuevaCategoria
                 isOpen={mostrarModalNueva}
                 onClose={() => setMostrarModalNueva(false)}

@@ -2,13 +2,25 @@
 "use client"
 
 import { motion } from 'framer-motion'
-import { useAuth } from '@/contexts/AuthContext'
 import { useState, useCallback, useMemo, memo } from 'react'
 import SidebarHeader from './SidebarHeader'
 import NavigationMenu from './NavigationMenu'
 import LogoutButton from './LogoutButton'
 import { useSidebar } from '@/hooks/collapse/useSidebar'
 import { Menu } from 'lucide-react'
+
+// Animaciones como constantes fuera del componente (evita recreación)
+const SIDEBAR_TRANSITION = {
+    type: "spring",
+    stiffness: 300,
+    damping: 30,
+    mass: 0.8
+}
+
+const CONTENT_TRANSITION = {
+    duration: 0.2,
+    ease: "easeInOut"
+}
 
 // Componente memoizado para el botón flotante
 const FloatingMenuButton = memo(({ onClick }) => (
@@ -18,7 +30,7 @@ const FloatingMenuButton = memo(({ onClick }) => (
         exit={{ opacity: 0, x: -20 }}
         transition={{ duration: 0.2 }}
         onClick={onClick}
-        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-blue-600 text-white shadow-lg hover:bg-blue-700 transition-colors"
+        className="fixed top-4 left-4 z-50 p-2 rounded-lg bg-amber-400 text-emerald-950 shadow-lg hover:bg-amber-300 transition-colors"
         aria-label="Mostrar menú"
     >
         <Menu size={24} />
@@ -28,7 +40,6 @@ const FloatingMenuButton = memo(({ onClick }) => (
 FloatingMenuButton.displayName = 'FloatingMenuButton';
 
 export default function Sidebar() {
-    const { user } = useAuth()
     const {
         isCollapsed,
         handleMouseEnter,
@@ -37,20 +48,6 @@ export default function Sidebar() {
     } = useSidebar()
 
     const [isSidebarVisible, setIsSidebarVisible] = useState(true)
-
-    // Animación suave y natural tipo "spring" para mejor sensación
-    const sidebarTransition = {
-        type: "spring",
-        stiffness: 300, // Más bajo = más suave (300 es un buen equilibrio)
-        damping: 30,    // Controla el rebote
-        mass: 0.8       // Peso de la animación
-    }
-
-    // Transición para el contenido interno (opcional)
-    const contentTransition = {
-        duration: 0.2,
-        ease: "easeInOut"
-    }
 
     const toggleSidebarVisibility = useCallback(() => {
         setIsSidebarVisible(prev => !prev)
@@ -74,11 +71,9 @@ export default function Sidebar() {
     return (
         <>
             <motion.div
-                className="h-screen flex flex-col shadow-xl bg-white border-r border-gray-200 relative"
-                animate={{
-                    width: sidebarWidth
-                }}
-                transition={sidebarTransition}
+                className="h-screen flex flex-col shadow-xl bg-emerald-900 border-r border-emerald-800 relative"
+                animate={{ width: sidebarWidth }}
+                transition={SIDEBAR_TRANSITION}
                 onMouseEnter={handleMouseEnterMemo}
                 onMouseLeave={handleMouseLeaveMemo}
                 style={{
@@ -86,13 +81,10 @@ export default function Sidebar() {
                     overflow: 'hidden'
                 }}
             >
-                {/* Contenido con opacidad suave al cambiar */}
                 <motion.div
                     className="flex-1 flex flex-col min-w-0"
-                    animate={{
-                        opacity: 1
-                    }}
-                    transition={contentTransition}
+                    animate={{ opacity: 1 }}
+                    transition={CONTENT_TRANSITION}
                 >
                     <SidebarHeader isCollapsed={isCollapsed} />
 
@@ -102,13 +94,13 @@ export default function Sidebar() {
                         </div>
                     </div>
 
-                    <div className={`border-t border-gray-200 bg-gray-50 ${isCollapsed ? 'p-1' : 'p-2'}`}>
+                    <div className={`border-t border-emerald-800 bg-emerald-950 ${isCollapsed ? 'p-1' : 'p-2'}`}>
                         <LogoutButton isCollapsed={isCollapsed} />
                     </div>
                 </motion.div>
             </motion.div>
 
-            {/* Overlay para móvil cuando el sidebar está abierto */}
+            {/* Overlay para móvil */}
             {isMobile && !isCollapsed && (
                 <motion.div
                     initial={{ opacity: 0 }}

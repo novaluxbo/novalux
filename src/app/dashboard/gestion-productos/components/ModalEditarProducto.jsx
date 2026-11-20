@@ -22,6 +22,8 @@ import {
     EyeIcon,
     EyeSlashIcon
 } from '@heroicons/react/24/outline';
+import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
+import { parsearFechaVencimiento, formatearFechaVencimiento } from '@/utils/fechasProducto';
 
 export default function ModalEditarProducto({
     producto,
@@ -38,6 +40,8 @@ export default function ModalEditarProducto({
         descripcion: '',
         categoria_id: '',
         precio: '',
+        precio_mayorista: '',
+        fecha_vencimiento: '',
         costo: '',
         comision_variable: '',
         stock_inicial: 0,
@@ -48,10 +52,14 @@ export default function ModalEditarProducto({
     });
     const [errors, setErrors] = useState({});
     const [success, setSuccess] = useState('');
-    const [codigoDuplicado, setCodigoDuplicado] = useState(false); // 👈 Nuevo estado
-    const [validandoCodigo, setValidandoCodigo] = useState(false); // 👈 Nuevo estado
+    const [codigoDuplicado, setCodigoDuplicado] = useState(false);
+    const [validandoCodigo, setValidandoCodigo] = useState(false);
 
-    // Función inline para validar formato del código (MISMA que en NuevoProducto)
+    // ✅ Detectar rol
+    const { values } = useMultiLocalStorageListener(["currentUser"]);
+    const { currentUser } = values;
+    const esAdmin = currentUser?.roles?.nombre === 'admin';
+
     const validarFormatoCodigo = (codigo) => {
         const codigoTrimmed = codigo.trim();
 
@@ -59,7 +67,6 @@ export default function ModalEditarProducto({
             return { valido: false, mensaje: 'El código no puede estar vacío' };
         }
 
-        // Expresión regular: solo letras, números y guiones
         const regex = /^[A-Za-z0-9-]+$/;
 
         if (!regex.test(codigoTrimmed)) {
@@ -69,7 +76,6 @@ export default function ModalEditarProducto({
             };
         }
 
-        // Validaciones básicas
         if (codigoTrimmed.startsWith('-') || codigoTrimmed.endsWith('-')) {
             return { valido: false, mensaje: 'No puede empezar ni terminar con guión' };
         }
@@ -85,7 +91,6 @@ export default function ModalEditarProducto({
         return { valido: true, mensaje: 'Formato válido' };
     };
 
-    // Función para verificar si el código ya existe en la sucursal (excluyendo el producto actual)
     const verificarCodigoDuplicado = useCallback((codigo) => {
         if (!codigo || !sucursalSeleccionada || !productosExistentes || productosExistentes.length === 0) {
             return false;
@@ -97,21 +102,17 @@ export default function ModalEditarProducto({
             productoItem.codigo &&
             productoItem.codigo.trim().toUpperCase() === codigoNormalizado &&
             productoItem.sucursal_id === sucursalSeleccionada.id &&
-            productoItem.id !== producto.id // 👈 IMPORTANTE: excluir el producto actual
+            productoItem.id !== producto.id
         );
-    }, [sucursalSeleccionada, productosExistentes, producto?.id]); // 👈 Dependencia del ID del producto
+    }, [sucursalSeleccionada, productosExistentes, producto?.id]);
 
-    // Verificar código duplicado en tiempo real con debounce
     useEffect(() => {
-        // Solo validar si hay un código y no es el mismo que ya tenía
         if (formData.codigo && formData.codigo !== producto?.codigo) {
             const timer = setTimeout(() => {
                 setValidandoCodigo(true);
 
-                // Validar formato primero
                 const formatoValido = validarFormatoCodigo(formData.codigo);
 
-                // Solo verificar duplicado si el formato es válido
                 if (formatoValido.valido) {
                     const esDuplicado = verificarCodigoDuplicado(formData.codigo);
                     setCodigoDuplicado(esDuplicado);
@@ -129,7 +130,6 @@ export default function ModalEditarProducto({
                         });
                     }
                 } else {
-                    // Si formato no válido, mostrar error de formato
                     setCodigoDuplicado(false);
                     setErrors(prev => ({
                         ...prev,
@@ -142,7 +142,6 @@ export default function ModalEditarProducto({
 
             return () => clearTimeout(timer);
         } else {
-            // Si es el mismo código que ya tenía, no es duplicado
             setCodigoDuplicado(false);
             setErrors(prev => {
                 const newErrors = { ...prev };
@@ -152,9 +151,6 @@ export default function ModalEditarProducto({
         }
     }, [formData.codigo, verificarCodigoDuplicado, producto?.codigo]);
 
-
-
-
     useEffect(() => {
         if (producto) {
             setFormData({
@@ -163,6 +159,8 @@ export default function ModalEditarProducto({
                 descripcion: producto.descripcion || '',
                 categoria_id: producto.categoria_id || '',
                 precio: producto.precio?.toString() || '',
+                precio_mayorista: producto.precio_mayorista?.toString() || '',
+                fecha_vencimiento: formatearFechaVencimiento(producto.fecha_vencimiento) || '',
                 costo: producto.costo?.toString() || '',
                 comision_variable: producto.comision_variable?.toString() || '',
                 stock_inicial: producto.stock_inicial || 0,
@@ -178,7 +176,6 @@ export default function ModalEditarProducto({
         }
     }, [producto]);
 
-
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
 
@@ -188,7 +185,6 @@ export default function ModalEditarProducto({
                 [name]: checked
             }));
         } else {
-            // Para el campo código, convertir a mayúsculas automáticamente
             if (name === 'codigo') {
                 const valorLimpio = value.toUpperCase().replace(/\s+/g, '');
                 setFormData(prev => ({
@@ -216,14 +212,12 @@ export default function ModalEditarProducto({
         setErrors({});
         setSuccess('');
 
-        // Validar formato del código
         const validacionCodigo = validarFormatoCodigo(formData.codigo);
         if (!validacionCodigo.valido) {
             setErrors({ codigo: validacionCodigo.mensaje });
             return;
         }
 
-        // Validar código duplicado (solo si cambió el código)
         if (formData.codigo !== producto.codigo && codigoDuplicado) {
             setErrors({
                 codigo: `El código "${formData.codigo}" ya existe en la sucursal "${sucursalSeleccionada.nombre}"`
@@ -231,7 +225,6 @@ export default function ModalEditarProducto({
             return;
         }
 
-        // Si estamos validando, esperar
         if (validandoCodigo) {
             setErrors({
                 codigo: 'Validando código, por favor espere...'
@@ -239,9 +232,31 @@ export default function ModalEditarProducto({
             return;
         }
 
+        // ✅ Parsear y validar fecha
+        const fechaISO = formData.fecha_vencimiento
+            ? parsearFechaVencimiento(formData.fecha_vencimiento)
+            : null;
+
+        if (formData.fecha_vencimiento && !fechaISO) {
+            setErrors({ fecha_vencimiento: 'Formato inválido. Usa DD-MM-YYYY (ej. 24-12-2027)' });
+            return;
+        }
+
+        if (fechaISO && !esAdmin) {
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const fv = new Date(fechaISO + 'T00:00:00');
+            if (fv < hoy) {
+                setErrors({ fecha_vencimiento: 'Solo administradores pueden registrar fechas pasadas' });
+                return;
+            }
+        }
+
         const datosParaEnviar = {
             ...formData,
             precio: parseFloat(formData.precio) || 0,
+            precio_mayorista: formData.precio_mayorista !== '' ? parseFloat(formData.precio_mayorista) : null,
+            fecha_vencimiento: fechaISO,
             costo: formData.costo ? parseFloat(formData.costo) : null,
             comision_variable: formData.comision_variable ? parseFloat(formData.comision_variable) : null,
             stock_inicial: parseInt(formData.stock_inicial) || 0,
@@ -265,7 +280,6 @@ export default function ModalEditarProducto({
     const categoriaSeleccionada = categorias.find(cat => cat.id === parseInt(formData.categoria_id));
     const permiteComisionVariable = categoriaSeleccionada?.reglas_comision?.comision_variable === true;
 
-    // Cálculos en tiempo real
     const margenBruto = formData.precio && formData.costo
         ? ((parseFloat(formData.precio) - parseFloat(formData.costo)) / parseFloat(formData.precio) * 100).toFixed(1)
         : null;
@@ -278,71 +292,25 @@ export default function ModalEditarProducto({
 
     // Animaciones
     const modalVariants = {
-        hidden: {
-            opacity: 0,
-            scale: 0.95,
-            y: 20
-        },
-        visible: {
-            opacity: 1,
-            scale: 1,
-            y: 0,
-            transition: {
-                duration: 0.3,
-                ease: "easeOut"
-            }
-        },
-        exit: {
-            opacity: 0,
-            scale: 0.95,
-            y: 20,
-            transition: {
-                duration: 0.2
-            }
-        }
+        hidden: { opacity: 0, scale: 0.95, y: 20 },
+        visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
+        exit: { opacity: 0, scale: 0.95, y: 20, transition: { duration: 0.2 } }
     };
-
     const backdropVariants = {
         hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                duration: 0.3
-            }
-        },
-        exit: {
-            opacity: 0,
-            transition: {
-                duration: 0.2
-            }
-        }
+        visible: { opacity: 1, transition: { duration: 0.3 } },
+        exit: { opacity: 0, transition: { duration: 0.2 } }
     };
-
     const formVariants = {
         hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: {
-                staggerChildren: 0.05,
-                delayChildren: 0.1
-            }
-        }
+        visible: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.1 } }
     };
-
     const itemVariants = {
         hidden: { opacity: 0, y: 10 },
-        visible: {
-            opacity: 1,
-            y: 0,
-            transition: { duration: 0.3 }
-        }
+        visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
     };
-
     const inputFocusVariants = {
-        focus: {
-            scale: 1.02,
-            transition: { duration: 0.2 }
-        }
+        focus: { scale: 1.02, transition: { duration: 0.2 } }
     };
 
     if (!producto) return null;
@@ -363,7 +331,7 @@ export default function ModalEditarProducto({
                     animate="visible"
                     exit="exit"
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                    className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto"
                 >
                     {/* Header */}
                     <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 p-4">
@@ -459,7 +427,7 @@ export default function ModalEditarProducto({
                         onSubmit={handleSubmit}
                         className="p-6 space-y-6"
                     >
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {/* Código */}
                             <motion.div variants={itemVariants} className="space-y-2">
                                 <label className="block text-sm font-semibold text-gray-700 flex items-center">
@@ -502,7 +470,6 @@ export default function ModalEditarProducto({
                                         />
                                     </div>
                                 )}
-                                {/* Mensaje de validación */}
                                 <div className="min-h-[20px]">
                                     {formData.codigo && formData.codigo !== producto.codigo && (
                                         <>
@@ -555,8 +522,6 @@ export default function ModalEditarProducto({
                                     )}
                                 </div>
                             </motion.div>
-
-
 
                             {/* Nombre */}
                             <motion.div variants={itemVariants} className="space-y-2">
@@ -634,8 +599,8 @@ export default function ModalEditarProducto({
                                         value={formData.precio}
                                         onChange={(e) => {
                                             let value = e.target.value
-                                                .replace(/[^0-9.]/g, '')       // solo números y punto
-                                                .replace(/(\..*)\./g, '$1');   // evita doble punto decimal
+                                                .replace(/[^0-9.]/g, '')
+                                                .replace(/(\..*)\./g, '$1');
 
                                             handleChange({
                                                 target: { name: "precio", value }
@@ -651,6 +616,86 @@ export default function ModalEditarProducto({
                                     <p className="text-red-500 text-sm mt-1 flex items-center">
                                         <ExclamationCircleIcon className="h-3 w-3 mr-1" />
                                         {errors.precio}
+                                    </p>
+                                )}
+                            </motion.div>
+
+                            {/* Precio Mayorista */}
+                            <motion.div variants={itemVariants} className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <CurrencyDollarIcon className="h-4 w-4 mr-2 text-gray-400" />
+                                    Precio Mayorista
+                                    <span className="ml-1 text-xs text-gray-500">(opcional)</span>
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-3 text-gray-500">Bs.</span>
+                                    <motion.input
+                                        whileFocus="focus"
+                                        variants={inputFocusVariants}
+                                        type="text"
+                                        inputMode="decimal"
+                                        name="precio_mayorista"
+                                        value={formData.precio_mayorista}
+                                        onChange={(e) => {
+                                            let value = e.target.value
+                                                .replace(/[^0-9.]/g, '')
+                                                .replace(/(\..*)\./g, '$1');
+                                            handleChange({ target: { name: 'precio_mayorista', value } });
+                                        }}
+                                        className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${errors.precio_mayorista
+                                            ? 'border-red-300 bg-red-50 text-red-900'
+                                            : 'border-gray-300 bg-gray-50 text-gray-900'
+                                            }`}
+                                        placeholder="0.00 (dejar vacío si no aplica)"
+                                    />
+                                </div>
+                                <p className="text-xs text-gray-500 flex items-center mt-1">
+                                    <InformationCircleIcon className="h-3 w-3 mr-1" />
+                                    Se usará para ventas al por mayor. Si se deja vacío, el producto no tendrá precio mayorista.
+                                </p>
+                                {errors.precio_mayorista && (
+                                    <p className="text-red-500 text-sm mt-1 flex items-center">
+                                        <ExclamationCircleIcon className="h-3 w-3 mr-1" />
+                                        {errors.precio_mayorista}
+                                    </p>
+                                )}
+                            </motion.div>
+
+                            {/* Fecha de Vencimiento */}
+                            <motion.div variants={itemVariants} className="space-y-2">
+                                <label className="block text-sm font-semibold text-gray-700 flex items-center">
+                                    <svg className="h-4 w-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    Fecha de Vencimiento
+                                    <span className="ml-1 text-xs text-gray-500">(opcional)</span>
+                                </label>
+                                <motion.input
+                                    whileFocus="focus"
+                                    variants={inputFocusVariants}
+                                    type="text"
+                                    name="fecha_vencimiento"
+                                    value={formData.fecha_vencimiento}
+                                    onChange={(e) => {
+                                        let value = e.target.value.replace(/[^0-9./-]/g, '');
+                                        handleChange({ target: { name: 'fecha_vencimiento', value } });
+                                    }}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 ${errors.fecha_vencimiento
+                                        ? 'border-red-300 bg-red-50 text-red-900'
+                                        : 'border-gray-300 bg-gray-50 text-gray-900'
+                                        }`}
+                                    placeholder="DD-MM-YYYY (ej. 24-12-2027)"
+                                />
+                                <p className="text-xs text-gray-500 flex items-center mt-1">
+                                    <InformationCircleIcon className="h-3 w-3 mr-1" />
+                                    {esAdmin
+                                        ? 'Admin: puede usar fechas pasadas o futuras'
+                                        : 'Solo fechas futuras (a partir de hoy)'}
+                                </p>
+                                {errors.fecha_vencimiento && (
+                                    <p className="text-red-500 text-sm mt-1 flex items-center">
+                                        <ExclamationCircleIcon className="h-3 w-3 mr-1" />
+                                        {errors.fecha_vencimiento}
                                     </p>
                                 )}
                             </motion.div>
@@ -672,8 +717,8 @@ export default function ModalEditarProducto({
                                         value={formData.costo}
                                         onChange={(e) => {
                                             let value = e.target.value
-                                                .replace(/[^0-9.]/g, '')       // solo números y punto
-                                                .replace(/(\..*)\./g, '$1');   // evita doble punto decimal
+                                                .replace(/[^0-9.]/g, '')
+                                                .replace(/(\..*)\./g, '$1');
 
                                             handleChange({
                                                 target: { name: "costo", value }
@@ -681,7 +726,6 @@ export default function ModalEditarProducto({
                                         }}
                                         className="w-full pl-10 pr-4 py-3 border border-gray-300 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all duration-200 text-gray-900"
                                     />
-
                                 </div>
                                 {formData.precio && formData.costo && (
                                     <div className="text-xs text-gray-600 mt-2 flex items-center justify-between">
