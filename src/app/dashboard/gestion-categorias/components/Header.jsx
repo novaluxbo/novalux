@@ -1,7 +1,7 @@
 // src/app/dashboard/gestion-categorias/components/Header.jsx
 'use client';
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 import { Building2, User, ShieldCheck, Tag } from 'lucide-react';
 
@@ -40,13 +40,17 @@ export default function Header({ onNuevaCategoria, totalCategorias }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!currentUser || !sucursalSeleccionada) return;
-        setLoading(false);
-    }, [currentUser, sucursalSeleccionada]);
+        // ✅ Solo depende de currentUser; sucursal puede ser null (admin sin sucursal)
+        if (currentUser) setLoading(false);
+    }, [currentUser]);
 
     if (loading) {
         return (
-            <div className="bg-emerald-900 p-3 rounded-xl shadow border border-emerald-800 border-l-[3px] border-l-amber-400">
+            <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-emerald-900 p-3 rounded-xl shadow border border-emerald-800 border-l-[3px] border-l-amber-400"
+            >
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex flex-col">
                         <motion.h1
@@ -66,7 +70,7 @@ export default function Header({ onNuevaCategoria, totalCategorias }) {
                 <div className="text-center py-6">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-amber-400 mx-auto"></div>
                 </div>
-            </div>
+            </motion.div>
         );
     }
 
@@ -102,7 +106,7 @@ export default function Header({ onNuevaCategoria, totalCategorias }) {
                     <motion.button
                         whileTap={{ scale: 0.96 }}
                         onClick={onNuevaCategoria}
-                        className="inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                        className="inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-emerald-950 px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
                     >
                         <span className="text-base leading-none">+</span>
                         Nueva Categoría

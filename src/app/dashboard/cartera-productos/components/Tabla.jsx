@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 import { formatearFechaVencimiento, estadoVencimiento } from '@/utils/fechasProducto';
-
+import LoadingState from '@/components/ui/LoadingState';
 const COLORES_CATEGORIA = [
     { bg: 'bg-blue-100', text: 'text-blue-800' },
     { bg: 'bg-amber-100', text: 'text-amber-800' },
@@ -124,13 +124,7 @@ export default function Tabla({
     }, [filtro, categoriaFiltro, soloActivos]);
 
     if (loading && productos.length === 0) {
-        return (
-            <div className="bg-white rounded-lg shadow">
-                <div className="p-6 text-center text-sm sm:text-base text-emerald-700">
-                    Cargando productos...
-                </div>
-            </div>
-        );
+        return <LoadingState message="Cargando productos..." />;
     }
 
     return (

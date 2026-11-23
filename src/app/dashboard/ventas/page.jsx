@@ -1,185 +1,120 @@
 // src/app/dashboard/ventas/page.jsx
-"use client";
-import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { useVentas } from "./hooks/useVentas";
-import Header from "./components/Header";
-import Tabla from "./components/Tabla";
-import ModalNuevaVenta from "./components/ModalNuevaVenta";
-import ModalComisionesPorUsuario from "./components/ModalComisionesPorUsuario";
-import FiltroVentas from "./components/FiltrosVentas";
+'use client';
+
+import { useCallback, useMemo, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener';
+import { useVentasList } from './hooks/useVentasList';
+import { useVentaCreate } from './hooks/useVentaCreate';
+import { useVentaAnular } from './hooks/useVentaAnular';
+import { useVentaDeposito } from './hooks/useVentaDeposito';
+import Header from './components/Header';
+import FiltrosVentas from './components/FiltrosVentas';
+import TablaVentas from './components/TablaVentas';
+import ModalNuevaVenta from './components/ModalNuevaVenta';
 
 export default function VentasPage() {
+    const { values } = useMultiLocalStorageListener(['currentUser']);
+    const currentUserFromStorage = values?.currentUser || null;
+    const { user: userFromContext } = useAuth();
+    const user = currentUserFromStorage || userFromContext;
+
+    const currentSucursal = useMemo(() => {
+        if (!user?.sucursal_id) return null;
+        return {
+            id: user.sucursal_id,
+            nombre: user?.sucursales?.nombre || `Sucursal ${user.sucursal_id}`,
+        };
+    }, [user]);
+
+    const rolNombre = useMemo(() => {
+        return user?.roles?.nombre || user?.rol_nombre || null;
+    }, [user]);
+
     const [modalAbierto, setModalAbierto] = useState(false);
-    const [modalVenta, setModalVenta] = useState(false);
-    const [filtroCategoria, setFiltroCategoria] = useState('');
-    const [filtroUsuarios, setFiltroUsuarios] = useState('');
-    const [terminoBusqueda, setTerminoBusqueda] = useState('');
-    const [filtroFecha, setFiltroFecha] = useState(null);
-    const [mostrarSoloActivas, setMostrarSoloActivas] = useState(true);
 
     const {
-        productos,
-        currentUser,
-        currentSucursal,
-        sucursalCargada,
-        rolNombre,
         ventas,
-        crearVenta,
-        crearMultiplesVentas,
-        obtenerVendedores,
-        anularVenta,
-        actualizarDepositado,
-        actualizarConfirmacionDepositado,
-        filtrarVentasPorCategoria,
-        filtrarVentasPorUsuarios,
-        filtrarVentasPorBusqueda,
-        obtenerMisVentas,
-        obtenerVentasParaExportar
-    } = useVentas();
+        loading,
+        loadingMore,
+        hasMore,
+        filtros,
+        setFiltros,
+        resetFiltros,
+        cargarMas,
+        exportarVentas,
+        totales,
+        actualizarEnMemoria,
+        agregarVentasEnMemoria,
+    } = useVentasList({ currentUser: user, currentSucursal });
 
-    // Ref para evitar doble fetch cuando FiltrosVentas setea el mes actual al montar
-    const ultimoFiltroRef = useRef(undefined);
+    const { crearVentasMultiples } = useVentaCreate({ currentUser: user });
+    const { anularVenta, anulando } = useVentaAnular({ currentUser: user });
+    const { marcarDepositado, actualizando: actualizandoDeposito } = useVentaDeposito();
 
-    // Refetch cuando cambia el rango de fecha (Opción 1: page orquesta)
-    useEffect(() => {
-        if (!sucursalCargada) return;
-
-        const prev = ultimoFiltroRef.current;
-        ultimoFiltroRef.current = filtroFecha;
-
-        // null → useVentas ya cargó el mes actual por defecto
-        if (filtroFecha === null) return;
-
-        // Si es el mismo rango que ya se aplicó, no refetch
-        if (prev !== undefined &&
-            prev?.inicio === filtroFecha?.inicio &&
-            prev?.fin === filtroFecha?.fin) return;
-
-        obtenerMisVentas(filtroFecha);
-    }, [filtroFecha, sucursalCargada, obtenerMisVentas]);
-
-    const handleVentaCreada = useCallback(async () => {
-        await obtenerMisVentas();
-    }, [obtenerMisVentas]);
-
-    const manejarFiltroCategoria = (categoria) => setFiltroCategoria(categoria);
-    const manejarFiltroUsuarios = (usuario) => setFiltroUsuarios(usuario);
-    const manejarBusqueda = (termino) => setTerminoBusqueda(termino);
-
-    // Categorías del rango actualmente cargado
-    const obtenerCategoriasUnicas = () => {
-        const categorias = [...new Set(ventas
-            .filter(venta => venta.categoria_nombre && venta.categoria_nombre.trim() !== '')
-            .map(venta => venta.categoria_nombre)
-        )].sort();
-        return categorias;
-    };
-
-    const ventasFiltradas = useMemo(() => {
-        let result = ventas;
-
-        if (filtroCategoria) {
-            result = filtrarVentasPorCategoria(result, filtroCategoria);
+    // Crear: agrega en memoria, sin refetch
+    const handleCrear = useCallback(async (payload) => {
+        const res = await crearVentasMultiples(payload);
+        if (res.success && res.ventasCreadas?.length) {
+            agregarVentasEnMemoria(res.ventasCreadas);
         }
-        if (filtroUsuarios) {
-            result = filtrarVentasPorUsuarios(result, filtroUsuarios);
-        }
-        if (terminoBusqueda) {
-            result = filtrarVentasPorBusqueda(result, terminoBusqueda);
-        }
-        if (mostrarSoloActivas) {
-            result = result.filter(v => v.estado === "activa");
-        }
-        return result;
-    }, [ventas, filtroCategoria, filtroUsuarios, terminoBusqueda, mostrarSoloActivas]);
+        return res;
+    }, [crearVentasMultiples, agregarVentasEnMemoria]);
 
-    const usuariosDeVentasFiltradas = useMemo(() => {
-        const usuarios = [...new Set(ventasFiltradas
-            .filter(venta =>
-                venta.usuarios?.nombre &&
-                venta.usuarios?.nombre.trim() !== ''
-            )
-            .map(venta => venta.usuarios.nombre)
-        )].sort();
-        return usuarios;
-    }, [ventasFiltradas]);
+    // Anular: actualiza en memoria. El useMemo del hook excluye la fila
+    // automáticamente si filtros.estado === 'activa'.
+    const handleAnular = useCallback(async (id, motivo) => {
+        const res = await anularVenta(id, motivo);
+        if (res?.success === false) return res;
 
-    if (!currentUser) {
-        return (
-            <div className="p-6">
-                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                    <p className="text-yellow-800">⚠️ Debe iniciar sesión para ver las ventas</p>
-                </div>
-            </div>
-        );
-    }
+        actualizarEnMemoria(id, {
+            estado: 'anulada',
+            motivo_anulacion: motivo,
+            fecha_anulacion: new Date().toISOString(),
+        });
+        return res;
+    }, [anularVenta, actualizarEnMemoria]);
 
-    if (!sucursalCargada) {
-        return (
-            <div className="p-6">
-                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
-                    <p className="text-yellow-800">⚠️ Debe seleccionar una sucursal para ver las ventas</p>
-                </div>
-            </div>
-        );
-    }
+    const handleNuevaVenta = useCallback(() => setModalAbierto(true), []);
+    const handleCerrarModal = useCallback(() => setModalAbierto(false), []);
 
     return (
-        <div className="min-h-screen p-1 space-y-1 text-gray-800 text-gray-500">
+        <div className="p-4 space-y-3">
             <Header
-                onMostrarComisiones={() => setModalAbierto(true)}
-                onNuevaVenta={() => setModalVenta(true)}
+                currentUser={user}
                 currentSucursal={currentSucursal}
                 rolNombre={rolNombre}
-                currentUser={currentUser}
+                onNuevaVenta={handleNuevaVenta}
             />
 
-            <FiltroVentas
-                filtroCategoria={filtroCategoria}
-                filtroUsuarios={filtroUsuarios}
-                onFiltroUsuariosChange={manejarFiltroUsuarios}
-                onFiltroCategoriaChange={manejarFiltroCategoria}
-                terminoBusqueda={terminoBusqueda}
-                onBusquedaChange={manejarBusqueda}
-                categorias={obtenerCategoriasUnicas()}
-                usuariosActivos={usuariosDeVentasFiltradas}
-                totalVentas={ventas.length}
-                ventasFiltradas={ventasFiltradas}
-                filtroFecha={filtroFecha}
-                onFiltroFechaChange={setFiltroFecha}
-                mostrarSoloActivas={mostrarSoloActivas}
-                setMostrarSoloActivas={setMostrarSoloActivas}
-                ventasOriginales={ventas}
-                obtenerVentasParaExportar={obtenerVentasParaExportar}
+            <FiltrosVentas
+                filtros={filtros}
+                setFiltros={setFiltros}
+                resetFiltros={resetFiltros}
+                onExportar={exportarVentas}
+                totales={totales}
             />
 
-            <Tabla
-                onAnularVenta={anularVenta}
-                onActualizarDepositado={actualizarDepositado}
-                onActualizarConfirmacionDepositado={actualizarConfirmacionDepositado}
-                obtenerMisVentas={obtenerMisVentas}
-                currentUser={currentUser}
+            <TablaVentas
+                ventas={ventas}
+                loading={loading}
+                loadingMore={loadingMore}
+                hasMore={hasMore}
+                onCargarMas={cargarMas}
                 rolNombre={rolNombre}
-                currentSucursal={currentSucursal}
-                ventas={ventasFiltradas}
-                filtrarVentasPorCategoria={filtrarVentasPorCategoria}
-                mostrarSoloActivas={mostrarSoloActivas}
-            />
-
-            <ModalComisionesPorUsuario
-                abierto={modalAbierto}
-                onCerrar={() => setModalAbierto(false)}
+                onAnular={handleAnular}
+                onMarcarDepositado={marcarDepositado}
+                anulando={anulando}
+                actualizandoDeposito={actualizandoDeposito}
+                actualizarEnMemoria={actualizarEnMemoria}
             />
 
             <ModalNuevaVenta
-                abierto={modalVenta}
-                onCerrar={() => setModalVenta(false)}
-                productos={productos}
-                onCreateVenta={crearVenta}
-                onCreateMultiplesVentas={crearMultiplesVentas}
-                currentUser={currentUser}
+                abierto={modalAbierto}
+                onCerrar={handleCerrarModal}
+                onCrear={handleCrear}
+                currentUser={user}
                 currentSucursal={currentSucursal}
-                obtenerVendedores={obtenerVendedores}
             />
         </div>
     );

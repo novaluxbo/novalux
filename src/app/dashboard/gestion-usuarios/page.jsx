@@ -5,39 +5,31 @@ import { useState } from 'react';
 import { useUsuarios } from '@/hooks/data/useUsuarios';
 import UsuariosTable from './components/UsuariosTable';
 import Header from './components/Header';
-import NuevoUsuarioVista from './components/NuevoUsuario';
+import NuevoUsuarioVista from './components/NuevoUsuarioVista';
 import EditarUsuario from './components/EditarUsuario';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 
 export default function GestionUsuarios() {
-    const [vistaActual, setVistaActual] = useState('lista'); // 'lista', 'nuevo', 'editar'
+    const [vistaActual, setVistaActual] = useState('lista');
     const [usuarioEditando, setUsuarioEditando] = useState(null);
 
-    // AÑADE fetchUsuarios en la desestructuración
-    const { usuarios, loading, fetchUsuarios, crearUsuario, actualizarUsuario, eliminarUsuario } = useUsuarios();
+    const { usuarios, loading, fetchUsuarios, crearUsuario, actualizarUsuario } = useUsuarios();
 
-    const { values } = useMultiLocalStorageListener([
-        "sucursalSeleccionada",
-    ]);
-
+    const { values } = useMultiLocalStorageListener(["sucursalSeleccionada"]);
     const { sucursalSeleccionada } = values;
     const sucursalSeleccionadaId = sucursalSeleccionada?.id;
 
-    const handleNuevoUsuario = () => {
-        setVistaActual('nuevo');
-        fetchUsuarios();
-    };
+    const handleNuevoUsuario = () => setVistaActual('nuevo');
 
     const handleEditarUsuario = (usuario) => {
         setUsuarioEditando(usuario);
         setVistaActual('editar');
-        fetchUsuarios();
     };
 
     const handleVolverALista = () => {
         setVistaActual('lista');
         setUsuarioEditando(null);
-        fetchUsuarios(); // ✅ Ahora fetchUsuarios está definido
+        fetchUsuarios();
     };
 
     const renderVista = () => {
@@ -75,8 +67,7 @@ export default function GestionUsuarios() {
     return (
         <div className="min-h-screen bg-gray-50 p-3">
             <Header onNuevoUsuario={handleNuevoUsuario} />
-
-            <div className="container mx-auto">
+            <div className="max-w-7xl mx-auto">
                 {renderVista()}
             </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSucursal } from '@/contexts/SucursalContext';
+import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener';
 import SucursalesTable from './components/SucursalesTable';
 import Header from './components/Header';
 import NuevoSucursal from './components/NuevoSucursal';
@@ -11,30 +12,27 @@ export default function GestionSucursales() {
     const [vistaActual, setVistaActual] = useState('lista');
     const [sucursalEditando, setSucursalEditando] = useState(null);
 
+    const { values } = useMultiLocalStorageListener(['currentUser']);
+    const currentUser = values.currentUser;
+
     const {
         sucursales,
         loading,
         sucursalSeleccionada,
-        fetchSucursales,
         createSucursal,
         updateSucursal,
     } = useSucursal();
 
-    const handleNuevaSucursal = () => {
-        setVistaActual('nuevo');
-        fetchSucursales();
-    };
+    const handleNuevaSucursal = () => setVistaActual('nuevo');
 
     const handleEditarSucursal = (sucursal) => {
         setSucursalEditando(sucursal);
         setVistaActual('editar');
-        fetchSucursales();
     };
 
     const handleVolverALista = () => {
         setVistaActual('lista');
         setSucursalEditando(null);
-        fetchSucursales();
     };
 
     const renderVista = () => {
@@ -45,6 +43,7 @@ export default function GestionSucursales() {
                         onCancelar={handleVolverALista}
                         onSucursalCreada={handleVolverALista}
                         createSucursal={createSucursal}
+                        usuarioId={currentUser?.id}
                     />
                 );
             case 'editar':
@@ -54,6 +53,7 @@ export default function GestionSucursales() {
                         onCancelar={handleVolverALista}
                         onSucursalActualizada={handleVolverALista}
                         updateSucursal={updateSucursal}
+                        usuarioId={currentUser?.id}
                     />
                 );
             default:
@@ -69,9 +69,9 @@ export default function GestionSucursales() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 p-3">
             <Header onNuevaSucursal={handleNuevaSucursal} />
-            <div className="container mx-auto p-2">
+            <div className="max-w-7xl mx-auto">
                 {renderVista()}
             </div>
         </div>

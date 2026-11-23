@@ -1,41 +1,90 @@
-"use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+// hooks/listener/useLocalStorageListener.js
+'use client';
 
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getItem, setItem, removeItem } from '@/lib/storage';
+
+/**
+ * Escucha múltiples claves de localStorage (con namespace de la app).
+ * Devuelve { values, updateValue }.
+ */
 export function useMultiLocalStorageListener(keys = []) {
-    const [values, setValues] = useState({});
-    const keysRef = useRef(keys); // 🔹 mantener referencia estable
+    const keysRef = useRef(keys);
+    keysRef.current = keys;
 
-    const readAll = useCallback(() => {
-        const result = {};
-        keysRef.current.forEach((key) => {
-            const data = localStorage.getItem(key);
-            try {
-                result[key] = data ? JSON.parse(data) : null;
-            } catch {
-                result[key] = data;
-            }
+    // Estado inicial: lee todas las claves de una vez
+    const [values, setValues] = useState(() => {
+        const initial = {};
+        keys.forEach(key => {
+            initial[key] = getItem(key, null);
         });
-        setValues(result);
+        return initial;
+    });
+
+    // Actualiza una sola clave y notifica
+    const updateValue = useCallback((key, value) => {
+        if (value === null || value === undefined) {
+            removeItem(key);
+        } else {
+            setItem(key, value);
+        }
+        // El evento jc:storage dispara el listener de abajo,
+        // pero actualizamos también localmente por si acaso.
+        setValues(prev => ({ ...prev, [key]: value }));
     }, []);
 
-    const updateValue = useCallback((key, newValue) => {
-        const valueToStore =
-            typeof newValue === "object" ? JSON.stringify(newValue) : newValue;
-
-        localStorage.setItem(key, valueToStore);
-        window.dispatchEvent(new Event("localStorageChange"));
-        readAll(); // actualizar inmediatamente
-    }, [readAll]);
-
     useEffect(() => {
-        readAll();
-        window.addEventListener("storage", readAll);
-        window.addEventListener("localStorageChange", readAll);
-        return () => {
-            window.removeEventListener("storage", readAll);
-            window.removeEventListener("localStorageChange", readAll);
+        const handleChange = (event) => {
+            // Evento interno (misma pestaña)
+            if (event.type === 'jc:storage') {
+                const { key, value } = event.detail || {};
+                if (key === '*') {
+                    // Limpieza total: releer todo
+                    const next = {};
+                    keysRef.current.forEach(k => { next[k] = getItem(k, null); });
+                    setValues(next);
+                    return;
+                }
+                if (keysRef.current.includes(key)) {
+                    setValues(prev => ({ ...prev, [key]: value ?? null }));
+                }
+                return;
+            }
+            // Evento nativo (otra pestaña)
+            if (event.type === 'storage') {
+                // event.key viene con prefijo, lo quitamos
+                const rawKey = event.key;
+                if (!rawKey) return; // clear() de otra pestaña
+                const prefix = 'jc_';
+                if (!rawKey.startsWith(prefix)) return;
+                const key = rawKey.slice(prefix.length);
+                if (keysRef.current.includes(key)) {
+                    setValues(prev => ({ ...prev, [key]: getItem(key, null) }));
+                }
+            }
         };
-    }, [readAll]);
+
+        window.addEventListener('jc:storage', handleChange);
+        window.addEventListener('storage', handleChange);
+
+        return () => {
+            window.removeEventListener('jc:storage', handleChange);
+            window.removeEventListener('storage', handleChange);
+        };
+    }, []);
 
     return { values, updateValue };
 }
+
+/**
+ * Alias por compatibilidad con imports existentes.
+ */
+export const useLocalStorageListener = (key) => {
+    const { values, updateValue } = useMultiLocalStorageListener([key]);
+    return {
+        value: values[key],
+        updateValue: (v) => updateValue(key, v),
+    };
+};
+
+export default useMultiLocalStorageListener;

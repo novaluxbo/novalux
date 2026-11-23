@@ -4,6 +4,7 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Users, Phone, MapPin, Edit, FileText } from 'lucide-react';
+import LoadingState from '@/components/ui/LoadingState';
 
 const COLORES_ESTADO = {
     Prospecto: 'bg-emerald-100 text-emerald-800 border-emerald-300',
@@ -73,13 +74,9 @@ export default function TablaClientes({
         };
     }, [hasMore, isLoadingMore, loadMore]);
 
+
     if (loading && clientesSeguros.length === 0) {
-        return (
-            <div className="bg-white border border-emerald-200 border-l-[3px] border-l-amber-400 rounded-xl flex flex-col items-center justify-center text-center min-h-[60vh]">
-                <Loader2 className="w-7 h-7 text-amber-500 animate-spin mb-4" />
-                <p className="text-emerald-900 font-semibold">Cargando clientes</p>
-            </div>
-        );
+        return <LoadingState message="Cargando clientes..." />;
     }
 
     if (clientesSeguros.length === 0) {

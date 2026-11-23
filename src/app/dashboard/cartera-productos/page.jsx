@@ -10,7 +10,7 @@ import { useProductos } from './hooks/useProductos';
 import { useDescargarExcelProductos } from './hooks/useDescargarExcelProductos';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 
-export default function GestionProductos() {
+export default function CarteraProductos() {
     const [modalNuevoAbierto, setModalNuevoAbierto] = useState(false);
     const [productoEditando, setProductoEditando] = useState(null);
 

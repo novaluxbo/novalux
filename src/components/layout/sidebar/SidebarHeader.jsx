@@ -4,7 +4,7 @@
 import { MapPin } from 'lucide-react'
 import { useSucursal } from '@/contexts/SucursalContext'
 import { useMultiLocalStorageListener } from '@/hooks/listener/useLocalStorageListener'
-import { useCallback, useMemo, memo, useEffect } from 'react'
+import { useCallback, useMemo, memo, useEffect, useRef } from 'react'
 import AnimatedLogo from './AnimatedLogo'   // ✅ nuevo import
 
 const SidebarHeader = memo(({ isCollapsed }) => {
@@ -14,6 +14,9 @@ const SidebarHeader = memo(({ isCollapsed }) => {
         loading,
         selectSucursal
     } = useSucursal()
+
+    // ✅ Ref para poder cerrar el dropdown nativo programáticamente
+    const selectRef = useRef(null)
 
     const handleSucursalChange = useCallback((e) => {
         const selectedId = parseInt(e.target.value)
@@ -36,6 +39,25 @@ const SidebarHeader = memo(({ isCollapsed }) => {
         const userRole = currentUser?.roles?.nombre?.toLowerCase();
         return userRole === 'admin' || userRole === 'supervisor';
     }, [currentUser]);
+
+    // ✅ Cerrar el dropdown nativo cuando el sidebar se colapsa
+    useEffect(() => {
+        if (isCollapsed && selectRef.current) {
+            selectRef.current.blur()
+        }
+    }, [isCollapsed])
+
+    // ✅ Cerrar el dropdown nativo al hacer clic fuera del select
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (selectRef.current && !selectRef.current.contains(event.target)) {
+                selectRef.current.blur()
+            }
+        }
+
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
 
     useEffect(() => {
         if (!sucursalSeleccionada && currentUser && sucursales.length > 0 && !loading) {
@@ -99,6 +121,7 @@ const SidebarHeader = memo(({ isCollapsed }) => {
                                 </div>
                             ) : (
                                 <select
+                                    ref={selectRef}
                                     value={sucursalSeleccionada?.id || ''}
                                     onChange={handleSucursalChange}
                                     className="w-full bg-emerald-950 border border-emerald-700 rounded-lg px-3 py-2 text-sm text-emerald-50 focus:outline-none focus:ring-2 focus:ring-amber-400 transition-colors"

@@ -2,6 +2,7 @@
 "use client"
 
 import { useAuth } from '@/contexts/AuthContext'
+import { SucursalProvider } from '@/contexts/SucursalContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import Sidebar from '@/components/layout/sidebar/Sidebar'
@@ -33,14 +34,15 @@ export default function DashboardLayout({ children }) {
     }
 
     return (
-        <SessionGuard>
-            <div className="flex h-screen bg-gray-50">
-                <Sidebar />
-                <main className={`flex-1 overflow-auto transition-all duration-300 ${isCollapsed ? 'ml-0' : 'ml-2'
-                    }`}>
-                    {children}
-                </main>
-            </div>
-        </SessionGuard>
+        <SucursalProvider>
+            <SessionGuard>
+                <div className="flex h-screen bg-gray-50">
+                    <Sidebar />
+                    <main className={`flex-1 overflow-auto transition-all duration-300 ${isCollapsed ? 'ml-0' : 'ml-2'}`}>
+                        {children}
+                    </main>
+                </div>
+            </SessionGuard>
+        </SucursalProvider>
     )
 }

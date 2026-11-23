@@ -1,6 +1,7 @@
 // src/app/dashboard/hooks/useDashboardData.js
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { getItem } from '@/lib/storage';
 
 // ✅ NUEVO: helper compartido para rango anual en Bolivia
 import { getBoliviaYearRangeUTC } from '@/utils/dateUtils';
@@ -35,18 +36,21 @@ export const useDashboardData = () => {
     const isMounted = useRef(true);
     const loadingRef = useRef(false);
 
+    // ✅ Migrado: getItem ya parsea y valida
     const getLocalStorageData = useCallback(() => {
         try {
-            const user = localStorage.getItem('currentUser');
-            const sucursal = localStorage.getItem('sucursalSeleccionada');
-            setCurrentUser(user ? JSON.parse(user) : null);
-            setCurrentSucursal(sucursal ? JSON.parse(sucursal) : null);
-            return {
-                user: user ? JSON.parse(user) : null,
-                sucursal: sucursal ? JSON.parse(sucursal) : null
-            };
+            const user = getItem('currentUser');
+            const sucursal = getItem('sucursalSeleccionada');
+
+            // Validación mínima: sucursal debe tener id
+            const sucursalValida = sucursal && sucursal.id ? sucursal : null;
+
+            setCurrentUser(user);
+            setCurrentSucursal(sucursalValida);
+
+            return { user, sucursal: sucursalValida };
         } catch (err) {
-            console.error('Error leyendo localStorage:', err);
+            console.error('Error leyendo storage:', err);
             return { user: null, sucursal: null };
         }
     }, []);
@@ -110,7 +114,7 @@ export const useDashboardData = () => {
         }));
     }, []);
 
-    // ✅ SIN CAMBIOS (ya trae productos activos con stock; con ~200 productos no es problema)
+    // ✅ SIN CAMBIOS
     const obtenerProductos = useCallback(async (sucursalId) => {
         if (!sucursalId) return [];
 
@@ -177,7 +181,7 @@ export const useDashboardData = () => {
     }, []);
 
     // ─────────────────────────────────────────────
-    // CÁLCULOS EN CLIENTE (sin cambios — operan sobre rawVentas que ahora sí está completo)
+    // CÁLCULOS EN CLIENTE (sin cambios)
     // ─────────────────────────────────────────────
     const calcularVentasPorCategoria = useCallback((ventas, productos, monthName = null) => {
         if (!ventas.length) return [];
@@ -518,11 +522,15 @@ export const useDashboardData = () => {
         isMounted.current = true;
         cargarDatos();
 
+        // ✅ Escucha ambos eventos:
+        // - 'storage': cambios en OTRAS pestañas (evento nativo)
+        // - 'jc:storage': cambios en ESTA pestaña (evento custom del módulo)
         const handleStorageChange = () => {
             cargarDatos();
         };
 
         window.addEventListener('storage', handleStorageChange);
+        window.addEventListener('jc:storage', handleStorageChange);
 
         const interval = setInterval(() => {
             cargarDatos();
@@ -531,6 +539,7 @@ export const useDashboardData = () => {
         return () => {
             isMounted.current = false;
             window.removeEventListener('storage', handleStorageChange);
+            window.removeEventListener('jc:storage', handleStorageChange);
             clearInterval(interval);
         };
     }, [cargarDatos]);

@@ -1,6 +1,8 @@
 // src/app/dashboard/gestion-categorias/components/Tabla.jsx
 import { useState, useMemo, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import LoadingState from '@/components/ui/LoadingState';
+
+import { motion, AnimatePresence } from 'framer-motion';
 import {
     TagIcon, CubeIcon, CheckCircleIcon, XCircleIcon,
     CurrencyDollarIcon, ChartBarIcon, PencilIcon,
@@ -18,7 +20,7 @@ const formatBs = (monto) => {
     return `Bs. ${parseFloat(monto).toFixed(2)}`;
 };
 
-const Tabla = ({ categorias, onEditar, onEliminar, onReactivar, onReglasComision }) => {
+const Tabla = ({ categorias = [], loading = false, onEditar, onEliminar, onReactivar, onReglasComision }) => {
     const [filtroActivo, setFiltroActivo] = useState('activos');
 
     const categoriasFiltradas = useMemo(() => {
@@ -32,7 +34,7 @@ const Tabla = ({ categorias, onEditar, onEliminar, onReactivar, onReglasComision
     const estadisticas = useMemo(() => {
         const activas = categoriasFiltradas.filter(c => c.activo).length;
         const inactivas = categoriasFiltradas.filter(c => !c.activo).length;
-        const totalProductos = categoriasFiltradas.reduce((sum, cat) => sum + cat.total_productos, 0);
+        const totalProductos = categoriasFiltradas.reduce((sum, cat) => sum + (cat.total_productos || 0), 0);
         return { activas, inactivas, totalProductos };
     }, [categoriasFiltradas]);
 
@@ -102,6 +104,10 @@ const Tabla = ({ categorias, onEditar, onEliminar, onReactivar, onReglasComision
         );
     }, []);
 
+    if (loading && categorias.length === 0) {
+        return <LoadingState message="Cargando categorías..." />;
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
@@ -134,8 +140,8 @@ const Tabla = ({ categorias, onEditar, onEliminar, onReactivar, onReglasComision
                                 key={filtro.key}
                                 onClick={() => setFiltroActivo(filtro.key)}
                                 className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 cursor-pointer rounded-lg text-[10px] sm:text-xs font-medium transition-all ${filtroActivo === filtro.key
-                                        ? 'bg-amber-400 text-emerald-950 shadow'
-                                        : 'bg-emerald-800 text-emerald-200 border border-emerald-700 hover:bg-emerald-700'
+                                    ? 'bg-amber-400 text-emerald-950 shadow'
+                                    : 'bg-emerald-800 text-emerald-200 border border-emerald-700 hover:bg-emerald-700'
                                     }`}
                             >
                                 <filtro.icon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -173,124 +179,127 @@ const Tabla = ({ categorias, onEditar, onEliminar, onReactivar, onReglasComision
                     </thead>
 
                     <tbody className="bg-emerald-50/30 divide-y divide-emerald-200/50">
-                        {categoriasFiltradas.length > 0 ? (
-                            categoriasFiltradas.map((categoria) => (
-                                <tr key={categoria.id} className="hover:bg-amber-50/50 transition-colors">
-                                    {/* Categoría */}
-                                    <td className="px-1 sm:px-2 py-2 sm:py-3 text-center">
-                                        <div className="flex flex-col items-center gap-0.5">
-                                            <div className="p-1 sm:p-1.5 bg-emerald-100 rounded-lg">
-                                                <TagIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-700" />
+                        <AnimatePresence>
+                            {categoriasFiltradas.length > 0 ? (
+                                categoriasFiltradas.map((categoria) => (
+                                    <motion.tr
+                                        key={categoria.id}
+                                        layout
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="hover:bg-amber-50/50 transition-colors"
+                                    >
+                                        {/* Categoría */}
+                                        <td className="px-1 sm:px-2 py-2 sm:py-3 text-center">
+                                            <div className="flex flex-col items-center gap-0.5">
+                                                <div className="p-1 sm:p-1.5 bg-emerald-100 rounded-lg">
+                                                    <TagIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-700" />
+                                                </div>
+                                                <p className="text-[11px] sm:text-sm font-semibold text-emerald-950 max-w-[80px] sm:max-w-none truncate">
+                                                    {categoria.nombre}
+                                                </p>
+                                                <span className={`sm:hidden inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${categoria.activo ? COLORES_ESTADO.activa : COLORES_ESTADO.inactiva}`}>
+                                                    {categoria.activo ? 'Activa' : 'Inactiva'}
+                                                </span>
                                             </div>
-                                            <p className="text-[11px] sm:text-sm font-semibold text-emerald-950 max-w-[80px] sm:max-w-none truncate">
-                                                {categoria.nombre}
+                                        </td>
+
+                                        {/* Total productos */}
+                                        <td className="px-1 sm:px-2 py-2 sm:py-3 text-center hidden sm:table-cell">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <CubeIcon className="h-3.5 w-3.5 text-emerald-500" />
+                                                <span className="text-xs sm:text-sm font-semibold text-emerald-950">
+                                                    {categoria.total_productos}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Productos activos */}
+                                        <td className="px-1 sm:px-2 py-2 sm:py-3 text-center hidden md:table-cell">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />
+                                                <span className={`text-xs sm:text-sm font-semibold ${categoria.productos_activos > 0 ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                                                    {categoria.productos_activos}
+                                                </span>
+                                            </div>
+                                        </td>
+
+                                        {/* Comisión */}
+                                        <td className="px-1 sm:px-2 py-2 sm:py-3 text-center">
+                                            {renderDetallesComision(categoria)}
+                                        </td>
+
+                                        {/* Estado */}
+                                        <td className="px-1 sm:px-2 py-2 sm:py-3 text-center hidden sm:table-cell">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${categoria.activo ? COLORES_ESTADO.activa : COLORES_ESTADO.inactiva}`}>
+                                                {categoria.activo ? <CheckCircleIcon className="h-3 w-3" /> : <XCircleIcon className="h-3 w-3" />}
+                                                <span className="hidden md:inline">{categoria.activo ? 'Activa' : 'Inactiva'}</span>
+                                            </span>
+                                        </td>
+
+                                        {/* Acciones */}
+                                        <td className="px-1 sm:px-2 py-2 sm:py-3 text-center">
+                                            <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5">
+                                                <button
+                                                    onClick={() => onReglasComision(categoria)}
+                                                    className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 text-[10px] font-semibold transition-colors w-full sm:w-auto cursor-pointer"
+                                                >
+                                                    <ChartBarIcon className="h-3 w-3" />
+                                                    <span>Reglas</span>
+                                                </button>
+
+                                                <button
+                                                    onClick={() => onEditar(categoria)}
+                                                    className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 text-[10px] font-semibold transition-colors w-full sm:w-auto cursor-pointer"
+                                                >
+                                                    <PencilIcon className="h-3 w-3" />
+                                                    <span>Editar</span>
+                                                </button>
+
+                                                {categoria.activo ? (
+                                                    <button
+                                                        onClick={() => onEliminar(categoria)}
+                                                        className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-rose-100 text-rose-800 hover:bg-rose-200 text-[10px] font-semibold transition-colors w-full sm:w-auto cursor-pointer"
+                                                    >
+                                                        <TrashIcon className="h-3 w-3" />
+                                                        <span>Eliminar</span>
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => onReactivar(categoria)}
+                                                        className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-lime-100 text-lime-800 hover:bg-lime-200 text-[10px] font-semibold transition-colors w-full sm:w-auto cursor-pointer"
+                                                    >
+                                                        <ArrowPathIcon className="h-3 w-3" />
+                                                        <span>Reactivar</span>
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </motion.tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan="6" className="px-4 py-12">
+                                        <div className="text-center">
+                                            <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
+                                                <TagIcon className="h-6 w-6 text-amber-500" />
+                                            </div>
+                                            <h3 className="text-sm font-semibold text-emerald-900 mb-1">
+                                                No se encontraron categorías
+                                            </h3>
+                                            <p className="text-emerald-600 text-xs">
+                                                {filtroActivo === 'activos'
+                                                    ? 'No hay categorías activas.'
+                                                    : filtroActivo === 'inactivos'
+                                                        ? 'No hay categorías inactivas.'
+                                                        : 'No hay categorías registradas.'}
                                             </p>
-                                            {/* Estado en mobile */}
-                                            <span className={`sm:hidden inline-block px-1.5 py-0.5 rounded-full text-[9px] font-bold border ${categoria.activo ? COLORES_ESTADO.activa : COLORES_ESTADO.inactiva}`}>
-                                                {categoria.activo ? 'Activa' : 'Inactiva'}
-                                            </span>
-                                        </div>
-                                    </td>
-
-                                    {/* Total productos (oculto en mobile) */}
-                                    <td className="px-1 sm:px-2 py-2 sm:py-3 text-center hidden sm:table-cell">
-                                        <div className="flex items-center justify-center gap-1">
-                                            <CubeIcon className="h-3.5 w-3.5 text-emerald-500" />
-                                            <span className="text-xs sm:text-sm font-semibold text-emerald-950">
-                                                {categoria.total_productos}
-                                            </span>
-                                        </div>
-                                    </td>
-
-                                    {/* Productos activos (oculto en sm) */}
-                                    <td className="px-1 sm:px-2 py-2 sm:py-3 text-center hidden md:table-cell">
-                                        <div className="flex items-center justify-center gap-1">
-                                            <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />
-                                            <span className={`text-xs sm:text-sm font-semibold ${categoria.productos_activos > 0 ? 'text-emerald-700' : 'text-emerald-400'
-                                                }`}>
-                                                {categoria.productos_activos}
-                                            </span>
-                                        </div>
-                                    </td>
-
-                                    {/* Comisión */}
-                                    <td className="px-1 sm:px-2 py-2 sm:py-3 text-center">
-                                        {renderDetallesComision(categoria)}
-                                    </td>
-
-                                    {/* Estado (oculto en mobile) */}
-                                    <td className="px-1 sm:px-2 py-2 sm:py-3 text-center hidden sm:table-cell">
-                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${categoria.activo ? COLORES_ESTADO.activa : COLORES_ESTADO.inactiva
-                                            }`}>
-                                            {categoria.activo ? <CheckCircleIcon className="h-3 w-3" /> : <XCircleIcon className="h-3 w-3" />}
-                                            <span className="hidden md:inline">{categoria.activo ? 'Activa' : 'Inactiva'}</span>
-                                        </span>
-                                    </td>
-
-                                    {/* Acciones */}
-                                    <td className="px-1 sm:px-2 py-2 sm:py-3 text-center">
-                                        <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5">
-                                            {/* Reglas */}
-                                            <button
-                                                onClick={() => onReglasComision(categoria)}
-                                                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 text-[10px] font-semibold transition-colors w-full sm:w-auto"
-                                            >
-                                                <ChartBarIcon className="h-3 w-3" />
-                                                <span>Reglas</span>
-                                            </button>
-
-                                            {/* Editar */}
-                                            <button
-                                                onClick={() => onEditar(categoria)}
-                                                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 text-[10px] font-semibold transition-colors w-full sm:w-auto"
-                                            >
-                                                <PencilIcon className="h-3 w-3" />
-                                                <span>Editar</span>
-                                            </button>
-
-                                            {/* Eliminar / Reactivar */}
-                                            {categoria.activo ? (
-                                                <button
-                                                    onClick={() => onEliminar(categoria)}
-                                                    className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-rose-100 text-rose-800 hover:bg-rose-200 text-[10px] font-semibold transition-colors w-full sm:w-auto"
-                                                >
-                                                    <TrashIcon className="h-3 w-3" />
-                                                    <span>Eliminar</span>
-                                                </button>
-                                            ) : (
-                                                <button
-                                                    onClick={() => onReactivar(categoria)}
-                                                    className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-1 rounded-lg bg-lime-100 text-lime-800 hover:bg-lime-200 text-[10px] font-semibold transition-colors w-full sm:w-auto"
-                                                >
-                                                    <ArrowPathIcon className="h-3 w-3" />
-                                                    <span>Reactivar</span>
-                                                </button>
-                                            )}
                                         </div>
                                     </td>
                                 </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan="6" className="px-4 py-12">
-                                    <div className="text-center">
-                                        <div className="mx-auto w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
-                                            <TagIcon className="h-6 w-6 text-amber-500" />
-                                        </div>
-                                        <h3 className="text-sm font-semibold text-emerald-900 mb-1">
-                                            No se encontraron categorías
-                                        </h3>
-                                        <p className="text-emerald-600 text-xs">
-                                            {filtroActivo === 'activos'
-                                                ? 'No hay categorías activas.'
-                                                : filtroActivo === 'inactivos'
-                                                    ? 'No hay categorías inactivas.'
-                                                    : 'No hay categorías registradas.'}
-                                        </p>
-                                    </div>
-                                </td>
-                            </tr>
-                        )}
+                            )}
+                        </AnimatePresence>
                     </tbody>
                 </table>
             </div>

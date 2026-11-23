@@ -1,4 +1,5 @@
 // src/config/metas.js
+import { getItem, setItem } from '@/lib/storage';
 
 export const METAS = {
     // Configuración por categoría: qué tipo de meta usar
@@ -54,14 +55,12 @@ export const getMeta = (month, categoryName, metas = null) => {
 
     if (!monthData) return null;
 
-    // Buscar meta específica de la categoría
     const metaValue = monthData[categoryName];
 
     if (metaValue !== undefined && metaValue !== null) {
         return metaValue;
     }
 
-    // Buscar meta por defecto del mes
     if (monthData.default !== undefined && monthData.default !== null) {
         return monthData.default;
     }
@@ -82,25 +81,23 @@ export const getRealValue = (category, metaType) => {
     return category.sales || 0;
 };
 
-// Formatear valores para mostrar - VERSIÓN CORREGIDA
+// Formatear valores para mostrar
 export const getFormat = (type, value) => {
     if (value === null || value === undefined) {
         return 'Sin meta';
     }
 
     if (type === 'quantity') {
-        // Mostrar como unidades
         if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
         return value.toLocaleString();
     } else {
-        // Mostrar como ingresos (moneda)
         if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
         if (value >= 1000) return `$${(value / 1000).toFixed(1)}k`;
         return `$${value.toLocaleString()}`;
     }
 };
 
-// Nueva función: obtener el sufijo según el tipo de meta
+// Obtener el sufijo según el tipo de meta
 export const getMetaSuffix = (type) => {
     if (type === 'quantity') {
         return 'und';
@@ -109,7 +106,7 @@ export const getMetaSuffix = (type) => {
     }
 };
 
-// Nueva función: obtener la etiqueta completa para mostrar
+// Obtener la etiqueta completa para mostrar
 export const getMetaLabel = (categoryName, type) => {
     const config = getCategoryConfig(categoryName);
     const suffix = getMetaSuffix(type);
@@ -121,23 +118,40 @@ export const getMetaLabel = (categoryName, type) => {
     }
 };
 
-// Funciones para localStorage (persistencia)
+// ================================
+// Persistencia (localStorage con namespace jc_)
+// ================================
 export const loadMetas = () => {
-    if (typeof window === 'undefined') return METAS;
-    const saved = localStorage.getItem('metas_config');
-    if (saved) {
-        try {
-            return JSON.parse(saved);
-        } catch (e) {
-            return METAS;
+    // 1. Intentar leer con el prefijo nuevo
+    let saved = getItem('metas_config');
+
+    // 2. Si no hay, intentar migrar del formato viejo (sin prefijo)
+    if (!saved && typeof window !== 'undefined') {
+        const legacy = window.localStorage.getItem('metas_config');
+        if (legacy) {
+            try {
+                const parsed = JSON.parse(legacy);
+                if (parsed && typeof parsed === 'object') {
+                    setItem('metas_config', parsed);
+                    window.localStorage.removeItem('metas_config');
+                    console.log('[metas] migrado de formato legacy → jc_metas_config');
+                    saved = parsed;
+                }
+            } catch (e) {
+                console.warn('[metas] legacy corrupto, se ignora:', e);
+            }
         }
+    }
+
+    // 3. Validar y devolver
+    if (saved && typeof saved === 'object') {
+        return saved;
     }
     return METAS;
 };
 
 export const saveMetas = (metas) => {
-    if (typeof window === 'undefined') return;
-    localStorage.setItem('metas_config', JSON.stringify(metas));
+    setItem('metas_config', metas);
 };
 
 export const updateMeta = (month, categoryName, value, type) => {
@@ -183,7 +197,7 @@ export const getProgressColor = (progress, metaExists) => {
     return 'bg-red-500';
 };
 
-// Función para obtener texto completo de la meta mostrada
+// Obtener texto completo de la meta mostrada
 export const getMetaDisplayText = (categoryName, type, value) => {
     const config = getCategoryConfig(categoryName);
     const suffix = getMetaSuffix(type);

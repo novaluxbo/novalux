@@ -7,6 +7,7 @@ import { useTraspasos } from '../hooks/useTraspasos';
 import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
 import toast from 'react-hot-toast';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import LoadingState from '@/components/ui/LoadingState';
 
 // Tipos de movimientos que queremos mostrar
 const TIPOS_MOSTRAR = ['entrada_stock', 'traslado_sucursal'];
@@ -306,16 +307,8 @@ export default function TablaMovimientos({ sucursalSeleccionada, refreshTrigger,
     };
 
     if (loading) {
-        return (
-            <div className="bg-white rounded-xl shadow-md p-8 h-full flex items-center justify-center">
-                <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Cargando movimientos...</p>
-                </div>
-            </div>
-        );
+        return <LoadingState message="Cargando traspasos..." />;
     }
-
     if (error) {
         return (
             <div className="bg-white rounded-xl shadow-md p-8 h-full flex items-center justify-center">

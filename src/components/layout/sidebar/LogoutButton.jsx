@@ -1,29 +1,12 @@
 // components/layout/sidebar/LogoutButton.jsx
 "use client"
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { LogOut, User } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { useMultiLocalStorageListener } from "@/hooks/listener/useLocalStorageListener";
-
-const AVATAR_MAP = {
-    'angela': '/image/promotores/promotor1.png',
-    'bolivia': '/image/promotores/promotor4.png',
-    'tatiana': '/image/promotores/promotor3.png',
-    'grisel': '/image/promotores/promotor2.png',
-}
-
-const getAvatarPath = (user) => {
-    if (!user?.nombre) return '/image/promotores/default.png'
-    const nombre = user.nombre.toLowerCase()
-    for (const [key, path] of Object.entries(AVATAR_MAP)) {
-        if (nombre.includes(key) || key.includes(nombre)) return path
-    }
-    return '/image/promotores/default.png'
-}
 
 // ─────────────────────────────────────────────
 // Animaciones del modal
@@ -40,7 +23,7 @@ const modalVariants = {
         opacity: 1,
         scale: 1,
         y: 0,
-        transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] }, // easeOutExpo
+        transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] },
     },
     exit: {
         opacity: 0,
@@ -60,12 +43,11 @@ const iconVariants = {
 }
 
 // ─────────────────────────────────────────────
-// Modal de confirmación (sin toast)
+// Modal de confirmación
 // ─────────────────────────────────────────────
-function LogoutModal({ userData, user, onCancel, onConfirm }) {
+function LogoutModal({ user, onCancel, onConfirm }) {
     return (
         <>
-            {/* Backdrop */}
             <motion.div
                 variants={backdropVariants}
                 initial="hidden"
@@ -75,7 +57,6 @@ function LogoutModal({ userData, user, onCancel, onConfirm }) {
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100]"
             />
 
-            {/* Modal */}
             <motion.div
                 variants={modalVariants}
                 initial="hidden"
@@ -104,19 +85,19 @@ function LogoutModal({ userData, user, onCancel, onConfirm }) {
                             ¿Estás seguro de que quieres salir?
                         </p>
                         <p className="text-sm text-emerald-600 mb-6">
-                            Usuario: <span className="font-semibold">{userData?.nombre || user?.nombre || 'Usuario'}</span>
+                            Usuario: <span className="font-semibold">{user?.nombre || 'Usuario'}</span>
                         </p>
 
                         <div className="flex gap-3">
                             <button
                                 onClick={onCancel}
-                                className="flex-1 py-2.5 px-4 border border-emerald-300 text-emerald-800 rounded-xl font-semibold hover:bg-emerald-50 transition-colors"
+                                className="flex-1 py-2.5 px-4 border border-emerald-300 text-emerald-800 rounded-xl font-semibold hover:bg-emerald-50 transition-colors cursor-pointer"
                             >
                                 Cancelar
                             </button>
                             <button
                                 onClick={onConfirm}
-                                className="flex-1 py-2.5 px-4 bg-rose-600 text-white rounded-xl font-semibold hover:bg-rose-700 transition-colors"
+                                className="flex-1 py-2.5 px-4 bg-rose-600 text-white rounded-xl font-semibold hover:bg-rose-700 transition-colors cursor-pointer"
                             >
                                 Sí, Salir
                             </button>
@@ -133,27 +114,12 @@ function LogoutModal({ userData, user, onCancel, onConfirm }) {
 // ─────────────────────────────────────────────
 export default function LogoutButton({ isCollapsed }) {
     const { logout, user } = useAuth()
-    const router = useRouter()
-    const [userData, setUserData] = useState(null)
-    const [avatarUrl, setAvatarUrl] = useState('/image/promotores/default.png')
     const [isModalOpen, setIsModalOpen] = useState(false)
-
-    const { values } = useMultiLocalStorageListener(["currentUser"]);
-    const { currentUser } = values;
-
-    useEffect(() => {
-        if (!currentUser) return
-        setUserData(currentUser)
-        setAvatarUrl(getAvatarPath(currentUser))
-    }, [currentUser])
 
     const openModal = () => setIsModalOpen(true)
     const closeModal = () => setIsModalOpen(false)
 
-    const handleCancel = () => {
-        closeModal()
-        toast('¡Qué bueno que te quedas! 🎉', { duration: 2000 })
-    }
+    const handleCancel = () => closeModal()
 
     const handleConfirm = async () => {
         closeModal()
@@ -163,17 +129,20 @@ export default function LogoutButton({ isCollapsed }) {
 
         try {
             await logout()
-            toast.success(`¡Hasta pronto ${userData?.nombre || user?.nombre}! 👋`, {
+            toast.success(`¡Hasta pronto ${user?.nombre || ''}! 👋`, {
                 id: loadingToast,
                 duration: 1500,
             })
-            router.push('/')
+            // ⚠️ No hace falta router.push: logout() ya redirige a /login
         } catch (error) {
             toast.error('Error al cerrar sesión', { id: loadingToast })
         }
     }
 
-    if (!userData && !user) {
+    // ─────────────────────────────────────────────
+    // Skeleton de carga (mientras user es null)
+    // ─────────────────────────────────────────────
+    if (!user) {
         return (
             <motion.div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center flex-shrink-0">
@@ -182,7 +151,9 @@ export default function LogoutButton({ isCollapsed }) {
                 {!isCollapsed && (
                     <div className="h-4 w-24 bg-emerald-800 rounded animate-pulse" />
                 )}
-                <div className="w-8 h-8 rounded-lg bg-emerald-800 animate-pulse" />
+                {!isCollapsed && (
+                    <div className="w-8 h-8 rounded-lg bg-emerald-800 animate-pulse" />
+                )}
             </motion.div>
         )
     }
@@ -190,17 +161,9 @@ export default function LogoutButton({ isCollapsed }) {
     return (
         <>
             <motion.div className={`flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} relative`}>
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden bg-gradient-to-br from-amber-400 to-amber-500">
-                    <img
-                        src={avatarUrl}
-                        alt={userData?.nombre || user?.nombre || 'Usuario'}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.parentElement.innerHTML = '<svg class="w-5 h-5 text-emerald-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>';
-                        }}
-                    />
+                {/* Avatar (icono por defecto) */}
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-amber-400 to-amber-500">
+                    <User className="w-5 h-5 text-emerald-950" />
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -214,13 +177,11 @@ export default function LogoutButton({ isCollapsed }) {
                             className="min-w-0 w-full flex-1"
                         >
                             <p className="font-medium text-emerald-50 text-sm truncate">
-                                {userData?.nombre || user?.nombre || 'Usuario'}
+                                {user.nombre || 'Usuario'}
                             </p>
-                            {userData?.caja && (
-                                <p className="text-xs text-emerald-300 truncate">
-                                    {userData.caja}
-                                </p>
-                            )}
+                            <p className="text-xs text-emerald-300 truncate">
+                                {user.roles?.nombre || '—'}
+                            </p>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -231,14 +192,14 @@ export default function LogoutButton({ isCollapsed }) {
                     whileTap={{ scale: 0.95 }}
                     onClick={openModal}
                     className={`
-                        flex items-center gap-2 px-2.5 py-1.5 rounded-lg transition-all duration-200 cursor-pointer
+                        flex items-center gap-2 rounded-lg transition-all duration-200 cursor-pointer
                         ${isCollapsed
                             ? 'p-2 bg-rose-950 text-rose-300 hover:bg-rose-900'
-                            : 'text-emerald-300 hover:bg-rose-950 hover:text-rose-300'
+                            : 'px-2.5 py-1.5 text-emerald-300 hover:bg-rose-950 hover:text-rose-300'
                         }
                     `}
                 >
-                    <LogOut className={`w-4 h-4 ${isCollapsed ? 'w-5 h-5' : ''}`} />
+                    <LogOut className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'}`} />
                     {!isCollapsed && (
                         <span className="text-sm font-medium">Salir</span>
                     )}
@@ -249,7 +210,6 @@ export default function LogoutButton({ isCollapsed }) {
             <AnimatePresence>
                 {isModalOpen && (
                     <LogoutModal
-                        userData={userData}
                         user={user}
                         onCancel={handleCancel}
                         onConfirm={handleConfirm}

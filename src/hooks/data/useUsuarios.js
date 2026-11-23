@@ -1,5 +1,5 @@
 // hooks/useUsuarios.js
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import bcrypt from 'bcryptjs';
 
@@ -14,43 +14,61 @@ export const useUsuarios = (sucursalId = null) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Ref para evitar setState después de desmontar
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; };
+    }, []);
+
     const fetchUsuarios = useCallback(async (filtros = {}) => {
-        setLoading(true);
-        setError(null);
+        if (mountedRef.current) {
+            setLoading(true);
+            setError(null);
+        }
 
         try {
             let query = supabase
                 .from('usuarios')
                 .select(USUARIOS_SELECT);
 
-            // Aplicar filtro por sucursal si está especificada
-            if (sucursalId && !filtros.todasSucursales) {
+            // Filtrar por sucursal SOLO si se indica explícitamente
+            if (filtros.sucursalId) {
+                query = query.eq('sucursal_id', filtros.sucursalId);
+            } else if (sucursalId && !filtros.todasSucursales) {
                 query = query.eq('sucursal_id', sucursalId);
             }
 
-            // Aplicar otros filtros
             if (filtros.activo !== undefined) {
                 query = query.eq('activo', filtros.activo);
             }
-
             if (filtros.rol_id) {
                 query = query.eq('rol_id', filtros.rol_id);
             }
-
             if (filtros.search) {
-                query = query.or(`nombre.ilike.%${filtros.search}%,email.ilike.%${filtros.search}%`);
+                query = query.or(`nombre.ilike.%${filtros.search}%`);
             }
+
             query = query.order('rol_id', { ascending: true });
             query = query.order('created_at', { ascending: false });
 
             const { data, error } = await query;
-
             if (error) throw error;
-            setUsuarios(data || []);
+
+            if (mountedRef.current) {
+                setUsuarios(data || []);
+            }
+            return { success: true, data: data || [] };
         } catch (err) {
-            setError(err.message);
+            console.error('useUsuarios fetchUsuarios error:', err);
+            if (mountedRef.current) {
+                setError(err.message);
+                // ⚠️ No vaciamos usuarios si ya había datos: evita el "salto"
+                setUsuarios(prev => (prev.length === 0 ? [] : prev));
+            }
+            return { success: false, error: err.message };
         } finally {
-            setLoading(false);
+            if (mountedRef.current) setLoading(false);
         }
     }, [sucursalId]);
 
@@ -102,12 +120,10 @@ export const useUsuarios = (sucursalId = null) => {
                 updated_at: new Date().toISOString(),
             };
 
-            // Solo hashear si se está actualizando la contraseña
             if (updates.clave && updates.clave !== '') {
                 const saltRounds = 12;
                 datosActualizados.clave = await bcrypt.hash(updates.clave, saltRounds);
             } else {
-                // Remover la clave si está vacía para no actualizarla
                 delete datosActualizados.clave;
             }
 
@@ -150,7 +166,6 @@ export const useUsuarios = (sucursalId = null) => {
                 user.id === id ? result.data : user
             ));
         }
-
         return result;
     };
 
@@ -181,18 +196,16 @@ export const useUsuarios = (sucursalId = null) => {
         return await fetchUsuarios({ search: termino });
     };
 
-    // Recargar usuarios cuando cambia la sucursalId
+    // Recargar cuando cambia sucursalId
     useEffect(() => {
         fetchUsuarios();
     }, [fetchUsuarios]);
 
     return {
-        // Estados
         usuarios,
         loading,
         error,
 
-        // Funciones CRUD
         fetchUsuarios,
         crearUsuario,
         actualizarUsuario,
@@ -201,11 +214,9 @@ export const useUsuarios = (sucursalId = null) => {
         verificarClave,
         buscarUsuarios,
 
-        // Funciones de estado
         inactivarUsuario: (id) => toggleEstadoUsuario(id, false),
         reactivarUsuario: (id) => toggleEstadoUsuario(id, true),
 
-        // Funciones de filtrado
         filtrarPorSucursal: (sucursalId) => fetchUsuarios({ sucursalId }),
         filtrarPorEstado: (activo) => fetchUsuarios({ activo }),
         filtrarPorRol: (rol_id) => fetchUsuarios({ rol_id }),

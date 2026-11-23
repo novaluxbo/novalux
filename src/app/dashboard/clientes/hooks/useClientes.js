@@ -29,7 +29,7 @@ export function useClientes() {
                     )
                 `)
                 .eq('activo', true)
-                .order('created_at', { ascending: false });
+                .order('codigo_cliente', { ascending: true });
 
             if (sbError) throw new Error(sbError.message);
             setClientes(data || []);
