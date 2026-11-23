@@ -1,266 +1,85 @@
 // src/app/dashboard/page.jsx
 'use client';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useDashboardData } from './hooks/useDashboardData';
-import { useMetas } from './hooks/useMetas';
-import CategoryCards from './components/CategoryCards';
-import SalesChart from './components/SalesChart';
-import TopProductsList from './components/TopProductsList';
-import ModalMeta from './components/ModalMeta';
+
 import { motion } from 'framer-motion';
+import { Construction, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function DashboardPage() {
-    const { dashboardData, loading, error, currentUser, currentSucursal, getTopProductsByMonth, getCategoriesByMonth } = useDashboardData();
-    const [selectedCategory, setSelectedCategory] = useState(null);
-    const [selectedMonth, setSelectedMonth] = useState(null);
-    const [filteredProducts, setFilteredProducts] = useState(null);
-    const [filteredCategories, setFilteredCategories] = useState(null);
-    const [showModalMeta, setShowModalMeta] = useState(false);
-
-    // Ref para evitar actualizaciones innecesarias
-    const isUpdatingRef = useRef(false);
-
-    // 🔥 NUEVO: Obtener el nombre del rol del usuario (ajusta según tu estructura real)
-    const rolNombre = useMemo(() => {
-        if (!currentUser) return null;
-        // Ajusta esta línea según cómo venga el rol en tu objeto currentUser
-        return currentUser.rolNombre
-            || currentUser.rol_nombre
-            || currentUser.roles?.nombre
-            || currentUser.role
-            || null;
-    }, [currentUser]);
-
-    // Función para resetear filtros
-    const resetFilters = useCallback(() => {
-        setSelectedMonth(null);
-        setSelectedCategory(null);
-    }, []);
-
-    // Actualizar productos y categorías cuando cambia el mes seleccionado
-    useEffect(() => {
-        if (isUpdatingRef.current) return;
-        if (!dashboardData) return;
-
-        if (selectedMonth && getTopProductsByMonth && getCategoriesByMonth) {
-            isUpdatingRef.current = true;
-            console.log(`🔄 Buscando datos para el mes: ${selectedMonth}`);
-
-            const productsByMonth = getTopProductsByMonth(selectedMonth);
-            const categoriesByMonth = getCategoriesByMonth(selectedMonth);
-
-            setFilteredProducts(productsByMonth);
-            setFilteredCategories(categoriesByMonth);
-
-            setTimeout(() => {
-                isUpdatingRef.current = false;
-            }, 100);
-        } else if (!selectedMonth && dashboardData) {
-            isUpdatingRef.current = true;
-            setFilteredProducts(dashboardData.topProducts);
-            setFilteredCategories(dashboardData.categories);
-
-            setTimeout(() => {
-                isUpdatingRef.current = false;
-            }, 100);
-        }
-    }, [selectedMonth, dashboardData, getTopProductsByMonth, getCategoriesByMonth]);
-
-    // Determinar qué datos mostrar
-    const displayCategories = useMemo(() => {
-        if (selectedMonth && filteredCategories) {
-            return filteredCategories;
-        }
-        return dashboardData?.categories || [];
-    }, [selectedMonth, filteredCategories, dashboardData?.categories]);
-
-    const displayProducts = useMemo(() => {
-        if (selectedMonth && filteredProducts) {
-            return filteredProducts;
-        }
-        return dashboardData?.topProducts || {};
-    }, [selectedMonth, filteredProducts, dashboardData?.topProducts]);
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-7xl mx-auto space-y-5">
-                    <div className="space-y-2">
-                        <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse" />
-                        <div className="h-4 w-48 bg-gray-200 rounded-lg animate-pulse" />
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                        {[...Array(5)].map((_, i) => (
-                            <div key={i} className="h-28 bg-gray-200 rounded-xl animate-pulse" />
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                        <div className="lg:col-span-2">
-                            <div className="h-[400px] bg-gray-200 rounded-xl animate-pulse" />
-                        </div>
-                        <div className="lg:col-span-1">
-                            <div className="h-[400px] bg-gray-200 rounded-xl animate-pulse" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-                <div className="bg-red-50 border border-red-200 rounded-xl p-8 max-w-md text-center">
-                    <div className="text-6xl mb-4">⚠️</div>
-                    <h3 className="text-lg font-semibold text-red-800 mb-2">Error al cargar datos</h3>
-                    <p className="text-red-600 text-sm mb-4">{error}</p>
-                    <button
-                        onClick={() => window.location.reload()}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                    >
-                        Reintentar
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    if (!dashboardData || !dashboardData.categories?.length) {
-        return (
-            <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-8 max-w-md text-center">
-                    <div className="text-6xl mb-4">📊</div>
-                    <h3 className="text-lg font-semibold text-yellow-800 mb-2">No hay datos disponibles</h3>
-                    <p className="text-yellow-600 text-sm">
-                        {!currentSucursal
-                            ? "Selecciona una sucursal para comenzar a ver estadísticas"
-                            : "No se encontraron ventas registradas en esta sucursal"}
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="min-h-screen bg-gray-50 p-2">
-            <div className="max-w-8xl mx-auto space-y-2">
-                {/* Header */}
-                <div className="flex justify-between items-start mb-2">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">
-                            Dashboard de Ventas
-                        </h1>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <p className="text-sm text-gray-500">
-                                {currentSucursal?.nombre || 'Sin sucursal'}
-                            </p>
-                            {dashboardData.stats?.totalVentas > 0 && (
-                                <>
-                                    <span className="text-gray-300">•</span>
-                                    <p className="text-sm text-green-600 font-medium">
-                                        {dashboardData.stats.totalVentas} ventas totales
-                                    </p>
-                                    <span className="text-gray-300">•</span>
-                                    <p className="text-sm text-blue-600 font-medium">
-                                        Bs. {(() => { const v = dashboardData.stats.totalIngresos; return v % 1 !== 0 ? v.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v.toLocaleString('es-BO'); })()} ingresos
-                                    </p>
-                                </>
-                            )}
-                            {selectedMonth && (
-                                <>
-                                    <span className="text-gray-300">•</span>
-                                    <p className="text-sm text-orange-600 font-medium">
-                                        📍 Mostrando datos de {selectedMonth}
-                                    </p>
-                                    <motion.button
-                                        onClick={resetFilters}
-                                        initial={{ scale: 0.8, opacity: 0 }}
-                                        animate={{
-                                            scale: 1,
-                                            opacity: 1,
-                                            // Efecto de parpadeo suave que se repite 3 veces
-                                            boxShadow: [
-                                                "0 0 0 0 rgba(220, 38, 38, 0)",
-                                                "0 0 0 4px rgba(220, 38, 38, 0.4)",
-                                                "0 0 0 0 rgba(220, 38, 38, 0)"
-                                            ]
-                                        }}
-                                        transition={{
-                                            scale: { type: "spring", stiffness: 400, damping: 25 },
-                                            opacity: { duration: 0.3 },
-                                            boxShadow: { duration: 0.8, repeat: 3, repeatType: "loop" }
-                                        }}
-                                        whileHover={{ scale: 1.05, backgroundColor: "#fee2e2" }}
-                                        whileTap={{ scale: 0.95 }}
-                                        className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full hover:bg-red-200 transition-all ml-1 flex items-center gap-1 font-medium"
-                                    >
-                                        <motion.span
-                                            animate={{ rotate: [0, 90, 0] }}
-                                            transition={{ duration: 0.5, delay: 0.2, repeat: 2 }}
-                                            className="text-sm"
-                                        >
-                                            ✕
-                                        </motion.span>
-                                        <span>Limpiar filtro</span>
-                                    </motion.button>
-                                </>
-                            )}
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={() => setShowModalMeta(true)}
-                        className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:cursor-pointer transition-colors shadow-sm"
+        <div className="min-h-screen bg-emerald-50/40 flex items-center justify-center p-6">
+            <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="bg-white rounded-2xl shadow-xl border border-emerald-200 border-l-4 border-l-amber-400 max-w-lg w-full overflow-hidden"
+            >
+                <div className="px-8 py-10 flex flex-col items-center text-center">
+                    {/* Ícono animado */}
+                    <motion.div
+                        initial={{ scale: 0.7, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.15, type: 'spring', stiffness: 280, damping: 20 }}
+                        className="w-20 h-20 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center mb-5"
                     >
-                        <span className="text-base">🎯</span>
-                        <span className="font-medium text-black">
-                            {/* 🔥 NUEVO: Texto dinámico según rol */}
-                            {rolNombre === 'admin' ? 'Editar Metas' : 'Ver Metas'}
-                        </span>
-                    </button>
+                        <motion.div
+                            animate={{ rotate: [0, -8, 8, -8, 0] }}
+                            transition={{
+                                duration: 2.4,
+                                repeat: Infinity,
+                                repeatDelay: 1.2,
+                                ease: 'easeInOut',
+                            }}
+                        >
+                            <Construction className="w-10 h-10 text-amber-600" />
+                        </motion.div>
+                    </motion.div>
+
+                    {/* Título */}
+                    <motion.h1
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25, duration: 0.25 }}
+                        className="text-2xl font-bold text-emerald-900 mb-2"
+                    >
+                        Dashboard en construcción
+                    </motion.h1>
+
+                    {/* Subtítulo */}
+                    <motion.p
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.32, duration: 0.25 }}
+                        className="text-sm text-emerald-700 leading-relaxed max-w-sm"
+                    >
+                        Estamos trabajando para traerte estadísticas en tiempo real
+                        de tus ventas, productos y metas. ¡Volvé pronto!
+                    </motion.p>
+
+                    {/* Separador */}
+                    <motion.div
+                        initial={{ opacity: 0, scaleX: 0 }}
+                        animate={{ opacity: 1, scaleX: 1 }}
+                        transition={{ delay: 0.4, duration: 0.35 }}
+                        className="w-16 h-0.5 bg-amber-400 rounded-full my-6"
+                    />
+
+                    {/* Botón volver */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.48, duration: 0.25 }}
+                    >
+                        <Link
+                            href="/dashboard/ventas"
+                            className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-emerald-950 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors shadow-sm hover:shadow"
+                        >
+                            <ArrowLeft className="w-4 h-4" />
+                            Ir a Ventas
+                        </Link>
+                    </motion.div>
                 </div>
-
-                {/* Category Cards */}
-                <CategoryCards
-                    categories={displayCategories}
-                    selectedCategory={selectedCategory}
-                    onSelectCategory={setSelectedCategory}
-                    currentMonth={dashboardData.currentMonth}
-                    selectedMonth={selectedMonth}
-                />
-
-                {/* Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    <div className="lg:col-span-2">
-                        <SalesChart
-                            data={dashboardData.monthlySales}
-                            categories={dashboardData.categories}
-                            selectedCategory={selectedCategory}
-                            onMonthSelect={setSelectedMonth}
-                        />
-                    </div>
-
-                    <div className="lg:col-span-1">
-                        <TopProductsList
-                            key={`${selectedCategory || 'all'}-${selectedMonth || 'current'}`}
-                            products={displayProducts}
-                            categories={dashboardData.categories}
-                            selectedCategory={selectedCategory}
-                            currentMonth={dashboardData.currentMonth}
-                            selectedMonth={selectedMonth}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Modal de Metas con BD */}
-            <ModalMeta
-                isOpen={showModalMeta}
-                onClose={() => setShowModalMeta(false)}
-                categories={dashboardData?.categories || []}
-                currentMonth={dashboardData?.currentMonth || 'Enero'}
-                rolNombre={rolNombre}  // 🔥 NUEVO: pasar el rol al modal
-            />
+            </motion.div>
         </div>
     );
 }

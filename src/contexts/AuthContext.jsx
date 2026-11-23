@@ -179,11 +179,11 @@ export function AuthProvider({ children }) {
         return () => { isMountedRef.current = false }
     }, [verificarIntegridadSesion])
 
-    // ============================================================
-    // 🔴 REALTIME
-    // ============================================================
     useEffect(() => {
         if (!user?.id) return
+
+        // ✅ Nombre único para evitar reutilización en StrictMode / re-render
+        const channelName = `usuario-${user.id}-changes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
         const handleUserChange = async (payload) => {
             const { eventType, new: newRow } = payload
@@ -222,7 +222,7 @@ export function AuthProvider({ children }) {
                 }
             }
 
-            // Rol cambiado → forzar re-login (comportamiento previo)
+            // Rol cambiado → forzar re-login
             try {
                 const { data: usuarioBD } = await supabase
                     .from('usuarios')
@@ -238,8 +238,7 @@ export function AuthProvider({ children }) {
                 // silencioso
             }
 
-            // ✅ NUEVO: si solo cambió sucursal/nombre/caja, resincronizar sin logout
-            // (reutilizamos verificarIntegridadSesion que ya hace el sync)
+            // Resincronizar datos sin logout
             try {
                 const userId = getItem('auth_user_id')
                 const loginTimestamp = getItem('auth_login_timestamp')
@@ -252,7 +251,7 @@ export function AuthProvider({ children }) {
         }
 
         const channel = supabase
-            .channel(`usuario-${user.id}-changes`)
+            .channel(channelName) // ✅ nombre único
             .on(
                 'postgres_changes',
                 {
@@ -277,8 +276,7 @@ export function AuthProvider({ children }) {
                 realtimeChannelRef.current = null
             }
         }
-    }, [user?.id, user?.rol_id, logout, verificarSiCambioClave, verificarIntegridadSesion])
-
+    }, [user?.id, logout, verificarSiCambioClave, verificarIntegridadSesion])
     // ============================================================
     // Polling fallback
     // ============================================================
