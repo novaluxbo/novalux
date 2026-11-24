@@ -42,7 +42,7 @@ export default function LoginForm() {
 
     useEffect(() => {
         if (!authLoading && isAuthenticated()) {
-            router.push('/dashboard/dashboard');
+            router.push('/dashboard/');
         }
     }, [authLoading, isAuthenticated, router]);
 
@@ -62,7 +62,7 @@ export default function LoginForm() {
             toast.success(`¡Bienvenid@ ${userData.nombre}! 🎉`);
             setNombre("");
             setPassword("");
-            window.location.href = '/dashboard/dashboard';
+            window.location.href = '/dashboard/';
         } else {
             toast.error(error || "Credenciales incorrectas");
         }
