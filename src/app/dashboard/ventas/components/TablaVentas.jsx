@@ -15,6 +15,126 @@ const MOTIVOS_RAPIDOS = [
     'Producto no disponible',
 ];
 
+// ── Fila memoizada: solo re-renderiza si su `v` o props cambian ──
+const FilaVenta = memo(function FilaVenta({
+    v,
+    i,
+    rolNombre,
+    onVerVoucher,
+    onVoucherChange,
+    onMarcarDepositado,
+    onAbrirAnulacion,
+    anulando,
+    actualizandoDeposito,
+}) {
+    const esAnulada = v.estado === 'anulada';
+    return (
+        <tr className={`hover:bg-emerald-50/60 transition-colors ${esAnulada ? 'bg-red-50/60' : ''}`}>
+            <td className="px-2 py-1.5 text-emerald-700">{i + 1}</td>
+            <td className="px-2 py-1.5 whitespace-nowrap">
+                <div className="font-medium text-gray-900">
+                    {new Date(v.fecha_venta).toLocaleDateString('es-BO')}
+                </div>
+                <div className="text-[10px] text-gray-500">
+                    {new Date(v.fecha_venta).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
+                </div>
+            </td>
+            <td className="px-2 py-1.5 max-w-[180px]">
+                <div className="font-medium text-gray-900 truncate">{v.nombre_producto}</div>
+                <div className="text-[10px] text-emerald-700">
+                    {v.codigo_producto} · {v.categoria_nombre || '—'}
+                </div>
+            </td>
+            <td className="px-2 py-1.5 text-center font-semibold text-gray-900">{v.cantidad}</td>
+            <td className="px-2 py-1.5 text-right text-gray-800">Bs. {Number(v.precio_unitario).toFixed(2)}</td>
+            <td className="px-2 py-1.5 text-right text-amber-600">
+                {Number(v.descuento_venta) > 0 ? `- ${Number(v.descuento_venta).toFixed(2)}` : '—'}
+            </td>
+            <td className="px-2 py-1.5 text-right font-bold text-emerald-700">
+                Bs. {Number(v.monto_total).toFixed(2)}
+            </td>
+            <td className="px-2 py-1.5 max-w-[160px]">
+                <div className="font-medium text-gray-900 truncate">{v.nombre_cliente}</div>
+                <div className="text-[10px] text-gray-500">{v.codigo_cliente || '—'}</div>
+            </td>
+            <td className="px-2 py-1.5 text-center">
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${v.tipo_cliente === 'Mayorista' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                    {v.tipo_cliente}
+                </span>
+            </td>
+            <td className="px-2 py-1.5 text-center">
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${v.metodo_pago === 'efectivo' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {v.metodo_pago}
+                </span>
+            </td>
+            <td className="px-2 py-1.5 text-center">
+                <div className="flex items-center justify-center gap-1.5">
+                    {v.comprobante_url ? (
+                        <button
+                            onClick={() => onVerVoucher(v.comprobante_url)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors"
+                        >
+                            <FileText className="w-3 h-3" />
+                            Ver
+                        </button>
+                    ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                    )}
+                    <ComprobanteUpload
+                        compact
+                        value={null}
+                        onChange={(nuevo) => onVoucherChange(v.id, nuevo)}
+                    />
+                </div>
+            </td>
+            <td className="px-2 py-1.5 text-center">
+                {rolNombre === 'admin' ? (
+                    <input
+                        type="checkbox"
+                        checked={!!v.depositado}
+                        disabled={esAnulada || actualizandoDeposito === v.id}
+                        onChange={(e) => onMarcarDepositado(v.id, e.target.checked)}
+                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
+                    />
+                ) : (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${v.depositado ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {v.depositado ? 'Sí' : 'No'}
+                    </span>
+                )}
+            </td>
+            <td className="px-2 py-1.5">
+                {/* ✅ NotaInput aislado: estado interno propio, su propio UPDATE */}
+                <NotaInput
+                    ventaId={v.id}
+                    initialValue={v.nota_individual || ''}
+                    disabled={esAnulada}
+                />
+            </td>
+            <td className="px-2 py-1.5 text-center">
+                {esAnulada ? (
+                    <div className="text-[10px]">
+                        <span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">Anulada</span>
+                        {v.motivo_anulacion && (
+                            <div className="text-[10px] text-red-600 mt-0.5 max-w-[120px] truncate">
+                                {v.motivo_anulacion}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => onAbrirAnulacion(v)}
+                        disabled={anulando === v.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] border border-red-500 text-red-600 rounded hover:bg-red-500 hover:text-white disabled:opacity-40 transition-colors"
+                    >
+                        {anulando === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                        Anular
+                    </button>
+                )}
+            </td>
+        </tr>
+    );
+});
+
 export default function TablaVentas({
     ventas,
     loading,
@@ -26,6 +146,7 @@ export default function TablaVentas({
     onMarcarDepositado,
     anulando,
     actualizandoDeposito,
+    actualizarEnMemoria,
 }) {
     const { actualizarVoucher } = useVentaVoucher();
     const [voucherAbierto, setVoucherAbierto] = useState(null);
@@ -50,18 +171,36 @@ export default function TablaVentas({
         return () => obs.disconnect();
     }, [hasMore, loadingMore, onCargarMas]);
 
+    // ✅ Actualiza Supabase y SOLO la fila afectada en memoria
     const handleVoucherChange = useCallback(async (ventaId, nuevo) => {
         if (!nuevo?.url) return;
         const res = await actualizarVoucher(ventaId, nuevo.url);
-        if (res.success) toast.success('Comprobante actualizado');
-        else toast.error(res.error || 'Error al actualizar');
-    }, [actualizarVoucher]);
+        if (res.success) {
+            toast.success('Comprobante actualizado');
+            actualizarEnMemoria?.(ventaId, { comprobante_url: nuevo.url });
+        } else {
+            toast.error(res.error || 'Error al actualizar');
+        }
+    }, [actualizarVoucher, actualizarEnMemoria]);
 
-    const abrirModalAnulacion = (venta) => {
+    // ✅ Actualiza Supabase y SOLO la fila afectada en memoria
+    const handleMarcarDepositado = useCallback(async (ventaId, checked) => {
+        const res = await onMarcarDepositado(ventaId, checked);
+        if (res?.success === false) {
+            toast.error(res.error || 'Error al actualizar');
+            return res;
+        }
+        actualizarEnMemoria?.(ventaId, { depositado: checked });
+        return res;
+    }, [onMarcarDepositado, actualizarEnMemoria]);
+
+    const abrirModalAnulacion = useCallback((venta) => {
         setVentaAAnular(venta);
         setMotivoRapido(null);
         setMotivoDetalle('');
-    };
+    }, []);
+
+    const handleVerVoucher = useCallback((url) => setVoucherAbierto(url), []);
 
     const confirmarAnulacion = async () => {
         const motivo = motivoRapido || motivoDetalle.trim();
@@ -123,125 +262,20 @@ export default function TablaVentas({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-emerald-50">
-                            {ventas.map((v, i) => {
-                                const esAnulada = v.estado === 'anulada';
-                                return (
-                                    <tr
-                                        key={v.id}
-                                        className={`hover:bg-emerald-50/60 transition-colors ${esAnulada ? 'bg-red-50/60' : ''}`}
-                                    >
-                                        <td className="px-2 py-1.5 text-emerald-700">{i + 1}</td>
-                                        <td className="px-2 py-1.5 whitespace-nowrap">
-                                            <div className="font-medium text-gray-900">
-                                                {new Date(v.fecha_venta).toLocaleDateString('es-BO')}
-                                            </div>
-                                            <div className="text-[10px] text-gray-500">
-                                                {new Date(v.fecha_venta).toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' })}
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-1.5 max-w-[180px]">
-                                            <div className="font-medium text-gray-900 truncate">{v.nombre_producto}</div>
-                                            <div className="text-[10px] text-emerald-700">
-                                                {v.codigo_producto} · {v.categoria_nombre || '—'}
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-1.5 text-center font-semibold text-gray-900">{v.cantidad}</td>
-                                        <td className="px-2 py-1.5 text-right text-gray-800">Bs. {Number(v.precio_unitario).toFixed(2)}</td>
-                                        <td className="px-2 py-1.5 text-right text-amber-600">
-                                            {Number(v.descuento_venta) > 0 ? `- ${Number(v.descuento_venta).toFixed(2)}` : '—'}
-                                        </td>
-                                        <td className="px-2 py-1.5 text-right font-bold text-emerald-700">
-                                            Bs. {Number(v.monto_total).toFixed(2)}
-                                        </td>
-                                        <td className="px-2 py-1.5 max-w-[160px]">
-                                            <div className="font-medium text-gray-900 truncate">{v.nombre_cliente}</div>
-                                            <div className="text-[10px] text-gray-500">{v.codigo_cliente || '—'}</div>
-                                        </td>
-                                        <td className="px-2 py-1.5 text-center">
-                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${v.tipo_cliente === 'Mayorista' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                                {v.tipo_cliente}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-1.5 text-center">
-                                            <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${v.metodo_pago === 'efectivo' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                {v.metodo_pago}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-1.5 text-center">
-                                            <div className="flex items-center justify-center gap-1.5">
-                                                {v.comprobante_url ? (
-                                                    <button
-                                                        onClick={() => setVoucherAbierto(v.comprobante_url)}
-                                                        className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors"
-                                                    >
-                                                        <FileText className="w-3 h-3" />
-                                                        Ver
-                                                    </button>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400">—</span>
-                                                )}
-                                                <ComprobanteUpload
-                                                    compact
-                                                    value={null}
-                                                    onChange={(nuevo) => handleVoucherChange(v.id, nuevo)}
-                                                />
-                                            </div>
-                                        </td>
-                                        <td className="px-2 py-1.5 text-center">
-                                            {rolNombre === 'admin' ? (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!v.depositado}
-                                                    disabled={esAnulada || actualizandoDeposito === v.id}
-                                                    onChange={async (e) => {
-                                                        const res = await onMarcarDepositado(v.id, e.target.checked);
-                                                        if (res?.success === false) toast.error(res.error || 'Error');
-                                                    }}
-                                                    className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                                                />
-                                            ) : (
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${v.depositado ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                                                    {v.depositado ? 'Sí' : 'No'}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-2 py-1.5">
-                                            {/* ✅ NotaInput totalmente aislado:
-                                                - no recibe `valor` desde el padre
-                                                - mantiene su propio estado interno
-                                                - hace su propio UPDATE a Supabase
-                                                - no re-renderiza la tabla al tipear
-                                            */}
-                                            <NotaInput
-                                                ventaId={v.id}
-                                                initialValue={v.nota_individual || ''}
-                                                disabled={esAnulada}
-                                            />
-                                        </td>
-                                        <td className="px-2 py-1.5 text-center">
-                                            {esAnulada ? (
-                                                <div className="text-[10px]">
-                                                    <span className="inline-block px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">Anulada</span>
-                                                    {v.motivo_anulacion && (
-                                                        <div className="text-[10px] text-red-600 mt-0.5 max-w-[120px] truncate">
-                                                            {v.motivo_anulacion}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <button
-                                                    onClick={() => abrirModalAnulacion(v)}
-                                                    disabled={anulando === v.id}
-                                                    className="inline-flex items-center gap-1 px-2 py-1 text-[11px] border border-red-500 text-red-600 rounded hover:bg-red-500 hover:text-white disabled:opacity-40 transition-colors"
-                                                >
-                                                    {anulando === v.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                                                    Anular
-                                                </button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                            {ventas.map((v, i) => (
+                                <FilaVenta
+                                    key={v.id}
+                                    v={v}
+                                    i={i}
+                                    rolNombre={rolNombre}
+                                    anulando={anulando}
+                                    actualizandoDeposito={actualizandoDeposito}
+                                    onVerVoucher={handleVerVoucher}
+                                    onVoucherChange={handleVoucherChange}
+                                    onMarcarDepositado={handleMarcarDepositado}
+                                    onAbrirAnulacion={abrirModalAnulacion}
+                                />
+                            ))}
                         </tbody>
                     </table>
                 </div>

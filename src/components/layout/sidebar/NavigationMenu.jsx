@@ -27,7 +27,7 @@ const menuGroups = [
         id: 'operaciones',
         label: 'Operaciones',
         items: [
-            { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, roles: ROLES_ALL, path: '/dashboard/' },
+            { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard, roles: ROLES_ALL, path: '/dashboard' },
             { id: 'ventas', name: 'Registro de Ventas', icon: ShoppingCart, roles: ROLES_ALL, path: '/dashboard/ventas' },
             { id: 'clientes', name: 'Cartera de Clientes', icon: Users, roles: ROLES_ALL, path: '/dashboard/clientes' },
             { id: 'productos', name: 'Cartera de Productos', icon: Package, roles: ROLES_ALL, path: '/dashboard/cartera-productos' },
@@ -144,9 +144,19 @@ export default function NavigationMenu({ isCollapsed }) {
 
     const isActive = useCallback((path) => {
         if (!pathname) return false
-        if (pathname === path) return true
-        if (path !== '/dashboard' && pathname.startsWith(path)) return true
-        return false
+
+        // Normalizamos quitando la barra final para comparar
+        const normalize = (p) => p.replace(/\/+$/, '')
+        const current = normalize(pathname)
+        const target = normalize(path)
+
+        // El dashboard solo se marca activo si estamos EXACTAMENTE ahí
+        if (target === '/dashboard') {
+            return current === '/dashboard'
+        }
+
+        // Para el resto, activo si es exacto o si es una subruta
+        return current === target || current.startsWith(target + '/')
     }, [pathname])
 
     const handleNavigation = useCallback((path) => {
